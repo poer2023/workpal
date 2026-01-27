@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { currentMonitor, primaryMonitor } from '@tauri-apps/api/window';
 import { PhysicalPosition, LogicalSize } from '@tauri-apps/api/dpi';
 import { Pet } from './components/Pet/Pet';
 import { useSettingsStore } from './stores/settingsStore';
+import { getScaledSize } from './hooks/useSprite';
 import './index.css';
 
 // Check if running in Tauri environment
@@ -13,6 +14,7 @@ function App() {
   const windowPosition = useSettingsStore((state) => state.windowPosition);
   const alwaysOnTop = useSettingsStore((state) => state.alwaysOnTop);
   const petSize = useSettingsStore((state) => state.petSize);
+  const resizeRafRef = useRef<number | null>(null);
 
   // Initialize window on startup - force visibility
   useEffect(() => {
@@ -73,8 +75,22 @@ function App() {
   useEffect(() => {
     if (!isTauri()) return;
     const padding = 20;
-    const size = petSize + padding;
-    getCurrentWindow().setSize(new LogicalSize(size, size)).catch(console.error);
+    const scaled = getScaledSize(petSize);
+    if (resizeRafRef.current !== null) {
+      cancelAnimationFrame(resizeRafRef.current);
+    }
+    resizeRafRef.current = requestAnimationFrame(() => {
+      getCurrentWindow()
+        .setSize(new LogicalSize(scaled.width + padding, scaled.height + padding))
+        .catch(console.error);
+      resizeRafRef.current = null;
+    });
+    return () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+    };
   }, [petSize]);
 
   return (

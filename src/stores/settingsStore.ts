@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
 import { enable, disable } from '@tauri-apps/plugin-autostart';
+import { SPRITE_CONFIG } from '../utils/spriteLoader';
+
+// 计算等比缩放后的尺寸
+function getScaledSize(targetSize: number) {
+  const { frameWidth, frameHeight } = SPRITE_CONFIG;
+  const aspectRatio = frameWidth / frameHeight;
+  const width = Math.round(targetSize * aspectRatio);
+  const height = targetSize;
+  return { width, height };
+}
 
 export type PetState = 'idle' | 'happy' | 'excited' | 'sleepy' | 'working' | 'angry' | 'dragging';
 
@@ -63,6 +72,8 @@ const defaultCharacters: Character[] = [
   },
 ];
 
+const STORAGE_KEY = 'workpal-settings';
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -91,7 +102,6 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       setPetSize: (size) => {
         set({ petSize: size });
-        invoke('set_pet_window_size', { size }).catch(console.error);
       },
       setCharacterName: (name) => set({ characterName: name }),
       setTheme: (theme) => set({ theme }),
@@ -113,7 +123,7 @@ export const useSettingsStore = create<SettingsState>()(
       setBackgroundRemovalAlgorithm: (algorithm) => set({ backgroundRemovalAlgorithm: algorithm }),
     }),
     {
-      name: 'workpal-settings',
+      name: STORAGE_KEY,
       version: 1,
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
@@ -125,3 +135,15 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  const globalWindow = window as Window & { __workpalSettingsSync__?: boolean };
+  if (!globalWindow.__workpalSettingsSync__) {
+    globalWindow.__workpalSettingsSync__ = true;
+    window.addEventListener('storage', (event) => {
+      if (event.key === STORAGE_KEY) {
+        useSettingsStore.persist.rehydrate();
+      }
+    });
+  }
+}

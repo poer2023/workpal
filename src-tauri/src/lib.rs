@@ -15,10 +15,10 @@ fn set_always_on_top(window: tauri::Window, enabled: bool) -> Result<(), String>
 }
 
 #[tauri::command]
-fn set_pet_window_size(app: tauri::AppHandle, size: u32) -> Result<(), String> {
+fn set_pet_window_size(app: tauri::AppHandle, width: u32, height: u32) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pet") {
         window
-            .set_size(tauri::Size::Physical(tauri::PhysicalSize::new(size, size)))
+            .set_size(tauri::Size::Physical(tauri::PhysicalSize::new(width, height)))
             .map_err(|e| e.to_string())?;
     }
     Ok(())

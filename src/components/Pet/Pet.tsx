@@ -27,7 +27,7 @@ export function Pet() {
     invoke('set_always_on_top', { enabled: alwaysOnTop }).catch(console.error);
   }, []);
 
-  const { canvasRef } = useSprite({
+  const { canvasRef, scaledSize, canvasSize } = useSprite({
     spriteUrl: currentCharacter?.spriteUrl || '/sprites/cat.png',
     state: currentState,
     size: petSize,
@@ -80,9 +80,9 @@ export function Pet() {
     >
       <canvas
         ref={canvasRef}
-        width={petSize}
-        height={petSize}
-        style={{ width: petSize, height: petSize }}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={{ width: scaledSize.width, height: scaledSize.height, imageRendering: 'pixelated' }}
         className="pointer-events-none"
       />
       {contextMenu.visible && (
