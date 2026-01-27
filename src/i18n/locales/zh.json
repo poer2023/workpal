@@ -1,0 +1,109 @@
+{
+  "settings": {
+    "title": "设置",
+    "tabs": {
+      "appearance": "外观",
+      "monitoring": "监控",
+      "alerts": "通知",
+      "about": "关于"
+    }
+  },
+  "appearance": {
+    "character": "角色",
+    "characterDesc": "选择你的桌面伙伴",
+    "customCharacter": "自定义角色",
+    "customCharacterDesc": "上传你自己的精灵图",
+    "showFormatInfo": "显示格式信息",
+    "hideFormatInfo": "隐藏格式信息",
+    "formatInfo": {
+      "size": "推荐尺寸：1024x896px（8帧/行 × 7行）",
+      "frameSize": "帧尺寸：每帧128x128px",
+      "aspectRatio": "宽高比：≈8:7（≈1.1429）",
+      "background": "背景：#ff00ff（洋红色，自动透明）",
+      "rows": "行：待机、开心、兴奋、困倦、工作中、生气、拖动中"
+    },
+    "namePlaceholder": "名称（可选）",
+    "chooseFile": "选择文件",
+    "aiPromptTemplate": "AI 提示词模板",
+    "copy": "复制",
+    "copied": "已复制！",
+    "backgroundRemoval": "背景移除算法",
+    "hslColorSpace": "HSL 色彩空间",
+    "rgbColorSpace": "RGB 色彩空间",
+    "settingsSection": "设置",
+    "characterName": "角色名称",
+    "characterSize": "角色大小",
+    "theme": "主题",
+    "themeSystem": "跟随系统",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "language": "语言",
+    "languageZh": "中文",
+    "languageEn": "英文",
+    "idleAnimations": "待机动画",
+    "idleAnimationsDesc": "待机时播放动画",
+    "alwaysOnTop": "置顶显示",
+    "alwaysOnTopDesc": "将宠物窗口保持在最上层"
+  },
+  "monitoring": {
+    "activityMonitoring": "活动监控",
+    "enableMonitoring": "启用监控",
+    "enableMonitoringDesc": "追踪活跃应用以改变宠物表情",
+    "monitoringActive": "监控运行中",
+    "monitoringPaused": "监控已暂停",
+    "currentStatus": "当前状态",
+    "refresh": "刷新",
+    "activity": "活动",
+    "frontmostApp": "前台应用",
+    "idleTime": "空闲时间",
+    "workDuration": "工作时长",
+    "supportedApps": "支持的应用",
+    "development": "开发",
+    "creative": "创意",
+    "communication": "通讯",
+    "productivity": "效率",
+    "petReactions": "宠物反应",
+    "reactions": {
+      "working": "编程/设计/写作 → 工作中",
+      "excited": "会议 → 兴奋",
+      "happy": "聊天 → 开心",
+      "sleepy": "空闲2分钟以上 → 困倦",
+      "encouraging": "工作45分钟以上 → 鼓励",
+      "concerned": "工作2小时以上 → 担忧"
+    }
+  },
+  "alerts": {
+    "notifications": "通知",
+    "enableNotifications": "启用通知",
+    "enableNotificationsDesc": "任务完成时显示通知",
+    "notificationSound": "通知声音",
+    "notificationSoundDesc": "通知时播放声音",
+    "celebrationAnimation": "庆祝动画",
+    "celebrationAnimationDesc": "任务完成时播放庆祝动画",
+    "system": "系统",
+    "startAtLogin": "登录时启动",
+    "startAtLoginDesc": "登录时自动启动 WorkPal"
+  },
+  "about": {
+    "appName": "WorkPal",
+    "tagline": "你的氛围编程伙伴",
+    "version": "版本",
+    "checkForUpdates": "检查",
+    "checking": "检查中...",
+    "updateStatus": {
+      "idle": "点击检查更新",
+      "checking": "正在检查更新...",
+      "latest": "已是最新版本",
+      "updateAvailable": "有新版本：v{{version}}",
+      "error": "检查更新失败"
+    },
+    "description": "WorkPal 是你友好的桌面角色，在你与 AI 助手编程时陪伴着你。它会监控你的编程助手并为你的成就喝彩！",
+    "supportedAgents": "支持的助手",
+    "soon": "即将支持"
+  },
+  "time": {
+    "seconds": "{{count}}秒",
+    "minutes": "{{count}}分钟",
+    "hours": "{{hours}}小时{{minutes}}分钟"
+  }
+}

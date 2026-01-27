@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    confirmo_pet_lib::run()
+    workpal_lib::run()
 }

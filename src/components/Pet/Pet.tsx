@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { invoke } from '@tauri-apps/api/core';
 import { useSprite } from '../../hooks/useSprite';
 import { useDrag } from '../../hooks/useDrag';
+import { useActivityMonitor } from '../../hooks/useActivityMonitor';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useActivityStore } from '../../stores/activityStore';
 
 interface ContextMenuState {
   visible: boolean;
@@ -11,9 +14,18 @@ interface ContextMenuState {
 }
 
 export function Pet() {
-  const { currentCharacter, petSize, currentState, setCurrentState } = useSettingsStore();
+  const { currentCharacter, petSize, currentState, setCurrentState, alwaysOnTop } = useSettingsStore();
+  useActivityStore(); // 初始化 activity store
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 启动活动监控
+  useActivityMonitor({ autoStart: true });
+
+  // Sync settings to system on startup
+  useEffect(() => {
+    invoke('set_always_on_top', { enabled: alwaysOnTop }).catch(console.error);
+  }, []);
 
   const { canvasRef } = useSprite({
     spriteUrl: currentCharacter?.spriteUrl || '/sprites/cat.png',
@@ -43,7 +55,7 @@ export function Pet() {
     } else {
       new WebviewWindow('settings', {
         url: 'settings.html',
-        title: 'Confirmo Settings',
+        title: 'WorkPal Settings',
         width: 740,
         height: 600,
         center: true,

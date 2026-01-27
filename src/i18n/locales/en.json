@@ -1,0 +1,109 @@
+{
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "appearance": "Appearance",
+      "monitoring": "Monitoring",
+      "alerts": "Alerts",
+      "about": "About"
+    }
+  },
+  "appearance": {
+    "character": "Character",
+    "characterDesc": "Choose your desktop companion",
+    "customCharacter": "Custom Character",
+    "customCharacterDesc": "Upload your own sprite sheet",
+    "showFormatInfo": "Show format info",
+    "hideFormatInfo": "Hide format info",
+    "formatInfo": {
+      "size": "Recommended size: 1024x896px (8 frames/row × 7 rows)",
+      "frameSize": "Frame size: 128x128px per frame",
+      "aspectRatio": "Aspect ratio: ≈8:7 (≈1.1429)",
+      "background": "Background: #ff00ff (magenta, auto-transparent)",
+      "rows": "Rows: Idle, Happy, Excited, Sleepy, Working, Angry, Dragging"
+    },
+    "namePlaceholder": "Name (optional)",
+    "chooseFile": "Choose File",
+    "aiPromptTemplate": "AI Prompt Template",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "backgroundRemoval": "Background Removal Algorithm",
+    "hslColorSpace": "HSL Color Space",
+    "rgbColorSpace": "RGB Color Space",
+    "settingsSection": "Settings",
+    "characterName": "Character Name",
+    "characterSize": "Character Size",
+    "theme": "Theme",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "language": "Language",
+    "languageZh": "Chinese",
+    "languageEn": "English",
+    "idleAnimations": "Idle Animations",
+    "idleAnimationsDesc": "Play animations when idle",
+    "alwaysOnTop": "Always on Top",
+    "alwaysOnTopDesc": "Keep pet window above others"
+  },
+  "monitoring": {
+    "activityMonitoring": "Activity Monitoring",
+    "enableMonitoring": "Enable Monitoring",
+    "enableMonitoringDesc": "Track active applications to change pet expressions",
+    "monitoringActive": "Monitoring active",
+    "monitoringPaused": "Monitoring paused",
+    "currentStatus": "Current Status",
+    "refresh": "Refresh",
+    "activity": "Activity",
+    "frontmostApp": "Frontmost App",
+    "idleTime": "Idle Time",
+    "workDuration": "Work Duration",
+    "supportedApps": "Supported Apps",
+    "development": "Development",
+    "creative": "Creative",
+    "communication": "Communication",
+    "productivity": "Productivity",
+    "petReactions": "Pet Reactions",
+    "reactions": {
+      "working": "Coding/Design/Writing → Working",
+      "excited": "Meeting → Excited",
+      "happy": "Chatting → Happy",
+      "sleepy": "Idle 2+ min → Sleepy",
+      "encouraging": "Work 45+ min → Encouraging",
+      "concerned": "Work 2+ hours → Concerned"
+    }
+  },
+  "alerts": {
+    "notifications": "Notifications",
+    "enableNotifications": "Enable Notifications",
+    "enableNotificationsDesc": "Show notifications when tasks complete",
+    "notificationSound": "Notification Sound",
+    "notificationSoundDesc": "Play sound with notifications",
+    "celebrationAnimation": "Celebration Animation",
+    "celebrationAnimationDesc": "Play celebration when tasks complete",
+    "system": "System",
+    "startAtLogin": "Start at Login",
+    "startAtLoginDesc": "Launch WorkPal when you log in"
+  },
+  "about": {
+    "appName": "WorkPal",
+    "tagline": "Your Vibe Coding Companion",
+    "version": "Version",
+    "checkForUpdates": "Check",
+    "checking": "Checking...",
+    "updateStatus": {
+      "idle": "Click to check for updates",
+      "checking": "Checking for updates...",
+      "latest": "You're on the latest version",
+      "updateAvailable": "Update available: v{{version}}",
+      "error": "Failed to check for updates"
+    },
+    "description": "WorkPal is your friendly desktop character that keeps you company while you code with AI assistants. It monitors your coding agents and celebrates your achievements!",
+    "supportedAgents": "Supported Agents",
+    "soon": "Soon"
+  },
+  "time": {
+    "seconds": "{{count}}s",
+    "minutes": "{{count}}m",
+    "hours": "{{hours}}h{{minutes}}m"
+  }
+}

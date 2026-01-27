@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { invoke } from '@tauri-apps/api/core';
+import { enable, disable } from '@tauri-apps/plugin-autostart';
 
 export type PetState = 'idle' | 'happy' | 'excited' | 'sleepy' | 'working' | 'angry' | 'dragging';
 
@@ -21,6 +23,7 @@ interface SettingsState {
   petSize: number;
   characterName: string;
   theme: 'system' | 'light' | 'dark';
+  language: 'zh' | 'en';
   alwaysOnTop: boolean;
   idleAnimations: boolean;
   currentState: PetState;
@@ -39,6 +42,7 @@ interface SettingsState {
   setPetSize: (size: number) => void;
   setCharacterName: (name: string) => void;
   setTheme: (theme: 'system' | 'light' | 'dark') => void;
+  setLanguage: (language: 'zh' | 'en') => void;
   setAlwaysOnTop: (value: boolean) => void;
   setIdleAnimations: (value: boolean) => void;
   setCurrentState: (state: PetState) => void;
@@ -65,8 +69,9 @@ export const useSettingsStore = create<SettingsState>()(
       currentCharacter: defaultCharacters[0],
       characters: defaultCharacters,
       petSize: 120,
-      characterName: 'Confirmo',
+      characterName: 'Pal',
       theme: 'system',
+      language: 'zh',
       alwaysOnTop: true,
       idleAnimations: true,
       currentState: 'idle',
@@ -84,21 +89,31 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           characters: state.characters.filter((c) => c.id !== id),
         })),
-      setPetSize: (size) => set({ petSize: size }),
+      setPetSize: (size) => {
+        set({ petSize: size });
+        invoke('set_pet_window_size', { size }).catch(console.error);
+      },
       setCharacterName: (name) => set({ characterName: name }),
       setTheme: (theme) => set({ theme }),
-      setAlwaysOnTop: (value) => set({ alwaysOnTop: value }),
+      setLanguage: (language) => set({ language }),
+      setAlwaysOnTop: (value) => {
+        set({ alwaysOnTop: value });
+        invoke('set_always_on_top', { enabled: value }).catch(console.error);
+      },
       setIdleAnimations: (value) => set({ idleAnimations: value }),
       setCurrentState: (state) => set({ currentState: state }),
       setWindowPosition: (position) => set({ windowPosition: position }),
       setEnableNotifications: (value) => set({ enableNotifications: value }),
       setNotificationSound: (value) => set({ notificationSound: value }),
       setCelebrationAnimation: (value) => set({ celebrationAnimation: value }),
-      setStartAtLogin: (value) => set({ startAtLogin: value }),
+      setStartAtLogin: (value) => {
+        set({ startAtLogin: value });
+        (value ? enable() : disable()).catch(console.error);
+      },
       setBackgroundRemovalAlgorithm: (algorithm) => set({ backgroundRemovalAlgorithm: algorithm }),
     }),
     {
-      name: 'confirmo-pet-settings',
+      name: 'workpal-settings',
       version: 1,
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {

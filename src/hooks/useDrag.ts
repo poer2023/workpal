@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window';
 import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { useSettingsStore } from '../stores/settingsStore';
 
@@ -9,10 +9,10 @@ interface UseDragOptions {
 }
 
 async function clampToScreen(): Promise<{ x: number; y: number } | null> {
-  const window = getCurrentWindow();
-  const monitor = await window.currentMonitor();
-  const pos = await window.outerPosition();
-  const size = await window.outerSize();
+  const tauriWindow = getCurrentWindow();
+  const monitor = await currentMonitor();
+  const pos = await tauriWindow.outerPosition();
+  const size = await tauriWindow.outerSize();
 
   if (!monitor) return { x: pos.x, y: pos.y };
 
@@ -23,7 +23,7 @@ async function clampToScreen(): Promise<{ x: number; y: number } | null> {
   const newY = Math.max(screenY, Math.min(pos.y, screenY + screenH - size.height));
 
   if (newX !== pos.x || newY !== pos.y) {
-    await window.setPosition(new PhysicalPosition(newX, newY));
+    await tauriWindow.setPosition(new PhysicalPosition(newX, newY));
   }
 
   return { x: newX, y: newY };

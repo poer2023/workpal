@@ -31,7 +31,7 @@ export function Slider({ value, min, max, onChange, unit = '' }: SliderProps) {
           background: `linear-gradient(to right, #7C9A72 0%, #7C9A72 ${percentage}%, #E5E5E5 ${percentage}%, #E5E5E5 100%)`,
         }}
       />
-      <span className="text-sm text-gray-600 min-w-[60px] text-right">
+      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-right">
         {value}{unit}
       </span>
     </div>
