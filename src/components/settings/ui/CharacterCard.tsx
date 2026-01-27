@@ -11,12 +11,13 @@ interface CharacterCardProps {
 }
 
 export function CharacterCard({ character, isSelected, onSelect, onDelete }: CharacterCardProps) {
-  const { characterName, setCharacterName } = useSettingsStore();
+  const { characterName, setCharacterName, backgroundRemovalAlgorithm } = useSettingsStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(characterName);
+  const canEditName = isSelected && !character.isCustom;
 
   const handleNameClick = (e: React.MouseEvent) => {
-    if (isSelected) {
+    if (canEditName) {
       e.stopPropagation();
       setEditValue(characterName);
       setIsEditing(true);
@@ -40,7 +41,7 @@ export function CharacterCard({ character, isSelected, onSelect, onDelete }: Cha
   };
 
   // Display user's custom name for selected character, otherwise show character type name
-  const displayName = isSelected ? characterName : character.name;
+  const displayName = character.isCustom ? character.name : isSelected ? characterName : character.name;
 
   return (
     <div
@@ -55,10 +56,14 @@ export function CharacterCard({ character, isSelected, onSelect, onDelete }: Cha
       `}
     >
       <div className="w-16 h-16 flex items-center justify-center mb-2">
-        <CharacterPreview spriteUrl={character.spriteUrl} size={64} />
+        <CharacterPreview
+          spriteUrl={character.spriteUrl}
+          size={64}
+          backgroundRemovalAlgorithm={backgroundRemovalAlgorithm}
+        />
       </div>
 
-      {isSelected && isEditing ? (
+      {canEditName && isEditing ? (
         <input
           type="text"
           value={editValue}
@@ -76,7 +81,7 @@ export function CharacterCard({ character, isSelected, onSelect, onDelete }: Cha
         <span
           onClick={handleNameClick}
           className={`text-sm text-gray-700 dark:text-gray-200 font-medium ${
-            isSelected ? 'cursor-text hover:bg-gray-100 dark:hover:bg-gray-700 px-1 rounded' : ''
+            canEditName ? 'cursor-text hover:bg-gray-100 dark:hover:bg-gray-700 px-1 rounded' : ''
           }`}
         >
           {displayName}

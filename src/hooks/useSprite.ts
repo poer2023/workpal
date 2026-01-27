@@ -4,6 +4,7 @@ import {
   loadSpriteSheet,
   getFramePosition,
   SPRITE_CONFIG,
+  type BackgroundRemovalAlgorithm,
 } from '../utils/spriteLoader';
 
 interface UseSpriteOptions {
@@ -11,6 +12,7 @@ interface UseSpriteOptions {
   state: PetState;
   size: number;
   fps?: number;
+  backgroundRemovalAlgorithm?: BackgroundRemovalAlgorithm;
 }
 
 const BASE_CANVAS_SIZE = {
@@ -28,9 +30,15 @@ function getScaledSize(targetSize: number) {
   return { width, height };
 }
 
-export function useSprite({ spriteUrl, state, size, fps = 8 }: UseSpriteOptions) {
+export function useSprite({
+  spriteUrl,
+  state,
+  size,
+  fps = 8,
+  backgroundRemovalAlgorithm,
+}: UseSpriteOptions) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [spriteSheet, setSpriteSheet] = useState<HTMLImageElement | null>(null);
+  const [spriteSheet, setSpriteSheet] = useState<CanvasImageSource | null>(null);
   const frameRef = useRef(0);
   const animationRef = useRef<number | undefined>(undefined);
   const lastTimeRef = useRef(0);
@@ -51,7 +59,7 @@ export function useSprite({ spriteUrl, state, size, fps = 8 }: UseSpriteOptions)
 
     async function load() {
       try {
-        const img = await loadSpriteSheet(spriteUrl);
+        const img = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm);
         if (cancelled) return;
         setSpriteSheet(img);
       } catch (err) {
@@ -63,7 +71,7 @@ export function useSprite({ spriteUrl, state, size, fps = 8 }: UseSpriteOptions)
     return () => {
       cancelled = true;
     };
-  }, [spriteUrl]);
+  }, [spriteUrl, backgroundRemovalAlgorithm]);
 
   // 固定 canvas 内部分辨率，避免拖动缩放时频繁重置导致闪烁
   useEffect(() => {

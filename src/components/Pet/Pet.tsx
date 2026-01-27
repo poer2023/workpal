@@ -15,7 +15,14 @@ interface ContextMenuState {
 }
 
 export function Pet() {
-  const { currentCharacter, petSize, currentState, setCurrentState, alwaysOnTop } = useSettingsStore();
+  const {
+    currentCharacter,
+    petSize,
+    currentState,
+    setCurrentState,
+    alwaysOnTop,
+    backgroundRemovalAlgorithm,
+  } = useSettingsStore();
   useActivityStore(); // 初始化 activity store
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -35,6 +42,7 @@ export function Pet() {
     state: currentState,
     size: petSize,
     fps: 8,
+    backgroundRemovalAlgorithm,
   });
 
   const { dragProps } = useDrag({

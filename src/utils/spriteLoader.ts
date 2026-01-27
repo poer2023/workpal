@@ -1,5 +1,7 @@
 import { PetState } from '../stores/settingsStore';
 
+export type BackgroundRemovalAlgorithm = 'hsl' | 'rgb';
+
 export const SPRITE_CONFIG = {
   frameWidth: 276,
   frameHeight: 274,
@@ -19,10 +21,34 @@ export const STATE_ROW_MAP: Record<PetState, number> = {
   dragging: 6,
 };
 
-export function loadSpriteSheet(url: string): Promise<HTMLImageElement> {
+export function loadSpriteSheet(
+  url: string,
+  algorithm?: BackgroundRemovalAlgorithm
+): Promise<CanvasImageSource> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!algorithm) {
+        resolve(img);
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(img);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const processed = removeMagentaBackground(imageData, algorithm);
+      ctx.putImageData(processed, 0, 0);
+      resolve(canvas);
+    };
     img.onerror = reject;
     img.src = url;
   });
@@ -73,15 +99,21 @@ export function isMagenta(r: number, g: number, b: number): boolean {
   return h > 290 && h < 310 && s > 0.8 && l > 0.4;
 }
 
+export function isMagentaRgb(r: number, g: number, b: number): boolean {
+  return r > 200 && b > 200 && g < 80;
+}
+
 export function removeMagentaBackground(
-  imageData: ImageData
+  imageData: ImageData,
+  algorithm: BackgroundRemovalAlgorithm = 'hsl'
 ): ImageData {
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    if (isMagenta(r, g, b)) {
+    const remove = algorithm === 'rgb' ? isMagentaRgb(r, g, b) : isMagenta(r, g, b);
+    if (remove) {
       data[i + 3] = 0; // Set alpha to 0
     }
   }

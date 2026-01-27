@@ -2,13 +2,10 @@ import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type Character } from '../../stores/settingsStore';
 import { CharacterCard } from './ui/CharacterCard';
+import { CharacterPreview } from './ui/CharacterPreview';
 import { Slider } from './ui/Slider';
 import { Select } from './ui/Select';
 import { Toggle } from './ui/Toggle';
-
-const presetCharacters = [
-  { id: 'cat', name: 'Cat', spriteUrl: '/sprites/cat.png', isCustom: false },
-];
 
 const AI_PROMPT_TEMPLATE = `Create a pixel art sprite sheet for a desktop pet character.
 
@@ -52,15 +49,23 @@ export function AppearanceTab() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const customCharacters = characters.filter((c) => c.isCustom);
+  const nameRequired = Boolean(selectedFile) && !customName.trim();
+  const availableCharacters = characters;
 
   // 处理文件选择（只预览，不上传）
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      setUploadError(t('appearance.uploadErrorInvalid'));
+      return;
+    }
+
+    setUploadError(null);
     setSelectedFile(file);
     // 如果用户没有输入名字，自动填入文件名（去掉扩展名）
     if (!customName) {
@@ -72,20 +77,54 @@ export function AppearanceTab() {
     reader.onload = () => {
       setFilePreviewUrl(reader.result as string);
     };
+    reader.onerror = () => {
+      setUploadError(t('appearance.uploadErrorRead'));
+      setSelectedFile(null);
+      setFilePreviewUrl(null);
+    };
     reader.readAsDataURL(file);
+  };
+
+  const normalizeName = (inputName: string, fileName: string) => {
+    const baseName = inputName.trim() || fileName.replace(/\.[^/.]+$/, '').trim();
+    return baseName || t('appearance.defaultCustomName');
+  };
+
+  const getUniqueName = (name: string) => {
+    if (!characters.some((c) => c.name === name)) return name;
+    let index = 2;
+    let candidate = `${name} ${index}`;
+    while (characters.some((c) => c.name === candidate)) {
+      index += 1;
+      candidate = `${name} ${index}`;
+    }
+    return candidate;
   };
 
   // 确认上传
   const handleUpload = () => {
-    if (!selectedFile || !filePreviewUrl) return;
+    if (!selectedFile || !filePreviewUrl) {
+      setUploadError(t('appearance.uploadErrorMissing'));
+      return;
+    }
+
+    const normalizedName = normalizeName(customName, selectedFile.name);
+    if (!normalizedName.trim()) {
+      setUploadError(t('appearance.uploadErrorName'));
+      return;
+    }
+
+    const finalName = getUniqueName(normalizedName);
 
     const newChar: Character = {
       id: `custom-${Date.now()}`,
-      name: customName || selectedFile.name.replace(/\.[^/.]+$/, ''),
+      name: finalName,
       spriteUrl: filePreviewUrl,
       isCustom: true,
     };
     addCharacter(newChar);
+    setCurrentCharacter(newChar);
+    setUploadError(null);
 
     // 清空状态
     setCustomName('');
@@ -99,6 +138,7 @@ export function AppearanceTab() {
     setSelectedFile(null);
     setFilePreviewUrl(null);
     setCustomName('');
+    setUploadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -115,12 +155,33 @@ export function AppearanceTab() {
         <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">{t('appearance.character')}</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t('appearance.characterDesc')}</p>
         <div className="grid grid-cols-4 gap-3">
-          {presetCharacters.map((char) => (
+          {availableCharacters.map((char) => (
             <CharacterCard
               key={char.id}
               character={char}
               isSelected={currentCharacter?.id === char.id}
               onSelect={() => setCurrentCharacter(char)}
+              onDelete={
+                char.isCustom
+                  ? () => {
+                      const fallback =
+                        characters.find((candidate) => candidate.id !== char.id) || null;
+                      removeCharacter(char.id);
+                      if (currentCharacter?.id === char.id) {
+                        if (fallback) {
+                          setCurrentCharacter(fallback);
+                        } else {
+                          setCurrentCharacter({
+                            id: 'default-cat',
+                            name: 'Cat',
+                            spriteUrl: '/sprites/cat.png',
+                            isCustom: false,
+                          });
+                        }
+                      }
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -174,16 +235,24 @@ export function AppearanceTab() {
           </button>
         </div>
 
+        {uploadError && (
+          <p className="text-xs text-red-500 mb-2">{uploadError}</p>
+        )}
+        {nameRequired && !uploadError && (
+          <p className="text-xs text-amber-500 mb-2">{t('appearance.uploadNameRequired')}</p>
+        )}
+
         {/* 文件预览和上传确认 */}
         {selectedFile && filePreviewUrl && (
           <div className="mb-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
             <div className="flex items-center gap-4">
-              <img
-                src={filePreviewUrl}
-                alt="Preview"
-                className="w-16 h-16 object-contain rounded border border-gray-300 dark:border-gray-600"
-                style={{ imageRendering: 'pixelated' }}
-              />
+              <div className="w-16 h-16 flex items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700">
+                <CharacterPreview
+                  spriteUrl={filePreviewUrl}
+                  size={64}
+                  backgroundRemovalAlgorithm={backgroundRemovalAlgorithm}
+                />
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                   {customName || selectedFile.name}
@@ -207,20 +276,6 @@ export function AppearanceTab() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {customCharacters.length > 0 && (
-          <div className="grid grid-cols-4 gap-3">
-            {customCharacters.map((char) => (
-              <CharacterCard
-                key={char.id}
-                character={char}
-                isSelected={currentCharacter?.id === char.id}
-                onSelect={() => setCurrentCharacter(char)}
-                onDelete={() => removeCharacter(char.id)}
-              />
-            ))}
           </div>
         )}
       </section>

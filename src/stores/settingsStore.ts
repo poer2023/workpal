@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { enable, disable } from '@tauri-apps/plugin-autostart';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, emit } from '@tauri-apps/api/event';
 import { SPRITE_CONFIG } from '../utils/spriteLoader';
 
 // 计算等比缩放后的尺寸
@@ -73,6 +75,25 @@ const defaultCharacters: Character[] = [
 ];
 
 const STORAGE_KEY = 'workpal-settings';
+const SETTINGS_SYNC_EVENT = 'settings-sync';
+const SETTINGS_SYNC_SOURCE = Math.random().toString(36).slice(2);
+
+const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
+
+const shouldSyncSettings = (state: SettingsState, prev: SettingsState) =>
+  state.currentCharacter !== prev.currentCharacter ||
+  state.characters !== prev.characters ||
+  state.petSize !== prev.petSize ||
+  state.characterName !== prev.characterName ||
+  state.theme !== prev.theme ||
+  state.language !== prev.language ||
+  state.alwaysOnTop !== prev.alwaysOnTop ||
+  state.idleAnimations !== prev.idleAnimations ||
+  state.enableNotifications !== prev.enableNotifications ||
+  state.notificationSound !== prev.notificationSound ||
+  state.celebrationAnimation !== prev.celebrationAnimation ||
+  state.startAtLogin !== prev.startAtLogin ||
+  state.backgroundRemovalAlgorithm !== prev.backgroundRemovalAlgorithm;
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -145,5 +166,38 @@ if (typeof window !== 'undefined') {
         useSettingsStore.persist.rehydrate();
       }
     });
+
+    if (isTauri()) {
+      let isApplyingSync = false;
+      const emitSync = async () => {
+        const payload = { source: SETTINGS_SYNC_SOURCE, at: Date.now() };
+        try {
+          await emit(SETTINGS_SYNC_EVENT, payload);
+        } catch {}
+      };
+
+      useSettingsStore.subscribe((state, prev) => {
+        if (isApplyingSync) return;
+        if (shouldSyncSettings(state, prev)) {
+          emitSync();
+        }
+      });
+
+      listen(SETTINGS_SYNC_EVENT, (event) => {
+        const payload = event.payload as { source?: string; settings?: Partial<SettingsState> };
+        if (!payload || payload.source === SETTINGS_SYNC_SOURCE) return;
+        isApplyingSync = true;
+        const apply = async () => {
+          if (payload.settings) {
+            useSettingsStore.setState(payload.settings);
+            return;
+          }
+          await useSettingsStore.persist.rehydrate();
+        };
+        void apply().finally(() => {
+          isApplyingSync = false;
+        });
+      }).catch(() => {});
+    }
   }
 }

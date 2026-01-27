@@ -1,9 +1,11 @@
 import { useRef, useEffect } from 'react';
+import { loadSpriteSheet, type BackgroundRemovalAlgorithm } from '../../../utils/spriteLoader';
 
 interface CharacterPreviewProps {
   spriteUrl: string;
   size?: number;
   className?: string;
+  backgroundRemovalAlgorithm?: BackgroundRemovalAlgorithm;
 }
 
 // Sprite sheet configuration (matches useSprite.ts)
@@ -18,7 +20,12 @@ function getScaledSize(targetSize: number) {
   return { width, height };
 }
 
-export function CharacterPreview({ spriteUrl, size = 64, className = '' }: CharacterPreviewProps) {
+export function CharacterPreview({
+  spriteUrl,
+  size = 64,
+  className = '',
+  backgroundRemovalAlgorithm,
+}: CharacterPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scaled = getScaledSize(size);
 
@@ -29,26 +36,41 @@ export function CharacterPreview({ spriteUrl, size = 64, className = '' }: Chara
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const img = new Image();
-    img.src = spriteUrl;
-    img.onload = () => {
-      // Clear canvas
-      ctx.clearRect(0, 0, scaled.width, scaled.height);
+    let cancelled = false;
+    const draw = async () => {
+      try {
+        const sheet = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm);
+        if (cancelled) return;
 
-      // Enable pixel art rendering
-      ctx.imageSmoothingEnabled = false;
+        // Clear canvas
+        ctx.clearRect(0, 0, scaled.width, scaled.height);
 
-      // Draw first frame (idle animation, frame 0)
-      // Source: top-left corner of sprite sheet
-      ctx.drawImage(
-        img,
-        0, 0,                    // Source position (first frame)
-        FRAME_WIDTH, FRAME_HEIGHT, // Source size
-        0, 0,                    // Destination position
-        scaled.width, scaled.height // Destination size (aspect ratio preserved)
-      );
+        // Enable pixel art rendering
+        ctx.imageSmoothingEnabled = false;
+
+        // Draw first frame (idle animation, frame 0)
+        // Source: top-left corner of sprite sheet
+        ctx.drawImage(
+          sheet,
+          0,
+          0,
+          FRAME_WIDTH,
+          FRAME_HEIGHT,
+          0,
+          0,
+          scaled.width,
+          scaled.height
+        );
+      } catch (err) {
+        console.error('Failed to load sprite preview:', err);
+      }
     };
-  }, [spriteUrl, size, scaled.width, scaled.height]);
+
+    draw();
+    return () => {
+      cancelled = true;
+    };
+  }, [spriteUrl, size, scaled.width, scaled.height, backgroundRemovalAlgorithm]);
 
   return (
     <canvas

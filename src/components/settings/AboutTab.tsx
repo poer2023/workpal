@@ -23,7 +23,7 @@ type UpdateStatus = 'idle' | 'checking' | 'latest' | 'update-available' | 'error
 
 export function AboutTab() {
   const { t } = useTranslation();
-  const { currentCharacter } = useSettingsStore();
+  const { currentCharacter, backgroundRemovalAlgorithm } = useSettingsStore();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
@@ -64,7 +64,11 @@ export function AboutTab() {
       <section className="flex flex-col items-center text-center py-4">
         <div className="w-20 h-20 mb-3 flex items-center justify-center">
           {currentCharacter && (
-            <CharacterPreview spriteUrl={currentCharacter.spriteUrl} size={80} />
+            <CharacterPreview
+              spriteUrl={currentCharacter.spriteUrl}
+              size={80}
+              backgroundRemovalAlgorithm={backgroundRemovalAlgorithm}
+            />
           )}
         </div>
         <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t('about.appName')}</h2>
