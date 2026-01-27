@@ -82,6 +82,7 @@ export function Pet() {
         ref={canvasRef}
         width={petSize}
         height={petSize}
+        style={{ width: petSize, height: petSize }}
         className="pointer-events-none"
       />
       {contextMenu.visible && (

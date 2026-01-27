@@ -67,6 +67,12 @@ export function useSprite({ spriteUrl, state, size, fps = 8 }: UseSpriteOptions)
       const currentSize = sizeRef.current;
       const currentState = stateRef.current;
 
+      // 在 rAF 回调中同步 Canvas 尺寸，避免竞态条件
+      if (canvas.width !== currentSize || canvas.height !== currentSize) {
+        canvas.width = currentSize;
+        canvas.height = currentSize;
+      }
+
       const frameInterval = 1000 / currentFps;
       const elapsed = timestamp - lastTimeRef.current;
 

@@ -50,28 +50,56 @@ export function AppearanceTab() {
   const [customName, setCustomName] = useState('');
   const [showFormatInfo, setShowFormatInfo] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const customCharacters = characters.filter((c) => c.isCustom);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理文件选择（只预览，不上传）
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file);
+    // 如果用户没有输入名字，自动填入文件名（去掉扩展名）
+    if (!customName) {
+      setCustomName(file.name.replace(/\.[^/.]+$/, ''));
+    }
+
+    // 创建预览 URL
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const newChar: Character = {
-        id: `custom-${Date.now()}`,
-        name: customName || file.name.replace(/\.[^/.]+$/, ''),
-        spriteUrl: dataUrl,
-        isCustom: true,
-      };
-      addCharacter(newChar);
-      setCustomName('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setFilePreviewUrl(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  // 确认上传
+  const handleUpload = () => {
+    if (!selectedFile || !filePreviewUrl) return;
+
+    const newChar: Character = {
+      id: `custom-${Date.now()}`,
+      name: customName || selectedFile.name.replace(/\.[^/.]+$/, ''),
+      spriteUrl: filePreviewUrl,
+      isCustom: true,
+    };
+    addCharacter(newChar);
+
+    // 清空状态
+    setCustomName('');
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // 取消选择
+  const handleCancelSelect = () => {
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    setCustomName('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const copyPrompt = async () => {
@@ -135,7 +163,7 @@ export function AppearanceTab() {
             ref={fileInputRef}
             type="file"
             accept=".png,.jpg,.jpeg"
-            onChange={handleFileUpload}
+            onChange={handleFileSelect}
             className="hidden"
           />
           <button
@@ -145,6 +173,42 @@ export function AppearanceTab() {
             {t('appearance.chooseFile')}
           </button>
         </div>
+
+        {/* 文件预览和上传确认 */}
+        {selectedFile && filePreviewUrl && (
+          <div className="mb-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div className="flex items-center gap-4">
+              <img
+                src={filePreviewUrl}
+                alt="Preview"
+                className="w-16 h-16 object-contain rounded border border-gray-300 dark:border-gray-600"
+                style={{ imageRendering: 'pixelated' }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                  {customName || selectedFile.name}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectedFile.name}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCancelSelect}
+                  className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleUpload}
+                  className="px-3 py-1.5 text-sm text-white bg-[#7C9A72] rounded-lg hover:bg-[#6B8A62] transition-colors"
+                >
+                  {t('appearance.upload')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {customCharacters.length > 0 && (
           <div className="grid grid-cols-4 gap-3">
