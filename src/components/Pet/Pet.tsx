@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSprite } from '../../hooks/useSprite';
 import { useDrag } from '../../hooks/useDrag';
 import { useActivityMonitor } from '../../hooks/useActivityMonitor';
+import { useBehaviorEngine } from '../../hooks/useBehaviorEngine';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useActivityStore } from '../../stores/activityStore';
 
@@ -21,6 +22,8 @@ export function Pet() {
 
   // 启动活动监控
   useActivityMonitor({ autoStart: true });
+  // 行为引擎：根据规则与上下文驱动宠物状态
+  useBehaviorEngine();
 
   // Sync settings to system on startup
   useEffect(() => {

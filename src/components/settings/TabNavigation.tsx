@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-type TabId = 'appearance' | 'monitoring' | 'alerts' | 'about';
+type TabId = 'appearance' | 'monitoring' | 'behaviors' | 'alerts' | 'about';
 
 interface Tab {
   id: TabId;
@@ -11,6 +11,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'appearance', labelKey: 'settings.tabs.appearance', icon: '🎨' },
   { id: 'monitoring', labelKey: 'settings.tabs.monitoring', icon: '👁️' },
+  { id: 'behaviors', labelKey: 'settings.tabs.behaviors', icon: '🧩' },
   { id: 'alerts', labelKey: 'settings.tabs.alerts', icon: '🔔' },
   { id: 'about', labelKey: 'settings.tabs.about', icon: 'ℹ️' },
 ];

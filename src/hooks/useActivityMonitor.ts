@@ -1,8 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useActivityStore } from '../stores/activityStore';
-import { useSettingsStore, type PetState } from '../stores/settingsStore';
-import type { ActivityState, ActivityStateChangedEvent } from '../types/activity';
+import type { ActivityStateChangedEvent } from '../types/activity';
 
 interface UseActivityMonitorOptions {
   autoStart?: boolean;
@@ -18,19 +17,15 @@ export function useActivityMonitor(options: UseActivityMonitorOptions = {}) {
     monitoringEnabled,
     startMonitoring,
     stopMonitoring,
-    setActivityState,
+    setActivityContext,
   } = useActivityStore();
-
-  const { setCurrentState } = useSettingsStore();
 
   // 处理活动状态变化
   const handleActivityChange = useCallback(
-    (state: ActivityState, newPetState: string) => {
-      setActivityState(state, newPetState);
-      // 同步到 settingsStore 以更新宠物动画
-      setCurrentState(newPetState as PetState);
+    (payload: ActivityStateChangedEvent) => {
+      setActivityContext(payload);
     },
-    [setActivityState, setCurrentState]
+    [setActivityContext]
   );
 
   // 监听 Tauri 事件
@@ -41,7 +36,7 @@ export function useActivityMonitor(options: UseActivityMonitorOptions = {}) {
       const unlisten = await listen<ActivityStateChangedEvent>(
         'activity-state-changed',
         (event) => {
-          handleActivityChange(event.payload.state, event.payload.pet_state);
+          handleActivityChange(event.payload);
         }
       );
 

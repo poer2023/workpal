@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TabNavigation, type TabId } from './TabNavigation';
 import { AppearanceTab } from './AppearanceTab';
 import { MonitoringTab } from './MonitoringTab';
+import { BehaviorsTab } from './BehaviorsTab';
 import { AlertsTab } from './AlertsTab';
 import { AboutTab } from './AboutTab';
 import { useTheme } from '../../hooks/useTheme';
@@ -74,6 +75,7 @@ export function SettingsWindow() {
       <main className="flex-1 overflow-y-auto px-6 py-4">
         {activeTab === 'appearance' && <AppearanceTab />}
         {activeTab === 'monitoring' && <MonitoringTab />}
+        {activeTab === 'behaviors' && <BehaviorsTab />}
         {activeTab === 'alerts' && <AlertsTab />}
         {activeTab === 'about' && <AboutTab />}
       </main>

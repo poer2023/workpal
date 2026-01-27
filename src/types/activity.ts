@@ -48,6 +48,7 @@ export interface SignalResponse {
 export interface ActivityStateChangedEvent {
   state: ActivityState;
   pet_state: string;
+  signal: MonitorSignal;
 }
 
 // 活动状态到宠物状态的映射

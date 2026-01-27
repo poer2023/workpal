@@ -57,7 +57,7 @@ impl MonitorManager {
     /// 启动监控循环
     pub fn start<F>(&mut self, on_state_change: F)
     where
-        F: Fn(ActivityState) + Send + Sync + 'static,
+        F: Fn(ActivityState, MonitorSignal) + Send + Sync + 'static,
     {
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
         self.shutdown_tx = Some(shutdown_tx);
@@ -72,7 +72,6 @@ impl MonitorManager {
             let mut idle_monitor = IdleMonitor::new();
 
             let mut current_interval = Duration::from_millis(config.active_interval_ms);
-            let mut last_state: Option<ActivityState> = None;
 
             loop {
                 // 检查停止信号（非阻塞）
@@ -97,11 +96,8 @@ impl MonitorManager {
                     inf.infer(&signal)
                 };
 
-                // 状态变化时触发回调
-                if last_state.as_ref() != Some(&new_state) {
-                    last_state = Some(new_state.clone());
-                    callback(new_state);
-                }
+                // 每次轮询都触发回调，保证前端能拿到最新上下文
+                callback(new_state, signal.clone());
 
                 // 自适应轮询间隔
                 let new_interval = if signal.idle_seconds > config.idle_threshold_seconds {

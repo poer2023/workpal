@@ -49,11 +49,12 @@ pub fn start_monitoring(
 
     // 启动监控，状态变化时发送事件
     let handle = app_handle.clone();
-    manager.start(move |activity_state| {
+    manager.start(move |activity_state, signal| {
         let pet_state = activity_state.to_pet_state().to_string();
         let _ = handle.emit("activity-state-changed", serde_json::json!({
             "state": activity_state,
             "pet_state": pet_state,
+            "signal": signal,
         }));
     });
 
