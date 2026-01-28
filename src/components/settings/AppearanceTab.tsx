@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type Character } from '../../stores/settingsStore';
 import { CharacterCard } from './ui/CharacterCard';

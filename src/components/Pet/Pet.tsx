@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { useSprite } from '../../hooks/useSprite';
@@ -31,9 +31,10 @@ export function Pet() {
   const menuRef = useRef<HTMLDivElement>(null);
   const actionTimerRef = useRef<number | null>(null);
   const [overrideState, setOverrideState] = useState<PetState | null>(null);
-  const [renderSpriteUrl, setRenderSpriteUrl] = useState(
-    currentCharacter?.spriteUrl || '/sprites/cat.png'
-  );
+  // Derive renderSpriteUrl directly from currentCharacter
+  const renderSpriteUrl = currentCharacter?.spriteUrl || '/sprites/cat.png';
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const effectiveSpriteUrl = fallbackUrl ?? renderSpriteUrl;
 
   // 启动活动监控
   useActivityMonitor({ autoStart: true });
@@ -43,10 +44,11 @@ export function Pet() {
   // Sync settings to system on startup
   useEffect(() => {
     invoke('set_always_on_top', { enabled: alwaysOnTop }).catch(console.error);
-  }, []);
+  }, [alwaysOnTop]);
 
+  // Reset fallback when character changes
   useEffect(() => {
-    setRenderSpriteUrl(currentCharacter?.spriteUrl || '/sprites/cat.png');
+    setFallbackUrl(null);
   }, [currentCharacter?.spriteUrl]);
 
   const spriteName =
@@ -59,7 +61,7 @@ export function Pet() {
 
   const effectiveState = overrideState ?? currentState;
   const { canvasRef, scaledSize, canvasSize, loadError } = useSprite({
-    spriteUrl: renderSpriteUrl,
+    spriteUrl: effectiveSpriteUrl,
     spriteName,
     state: effectiveState,
     size: petSize,
@@ -72,12 +74,12 @@ export function Pet() {
     if (!loadError) return;
     if (currentCharacter?.isCustom) {
       console.warn('Custom sprite failed to load:', loadError);
-      if (renderSpriteUrl !== '/sprites/cat.png') {
-        setRenderSpriteUrl('/sprites/cat.png');
+      if (effectiveSpriteUrl !== '/sprites/cat.png') {
+        setFallbackUrl('/sprites/cat.png');
       }
       return;
     }
-    const fallback =
+    const fallbackChar =
       characters.find((char) => !char.isCustom && char.spriteUrl === '/sprites/cat.png') ||
       characters[0] ||
       {
@@ -86,11 +88,11 @@ export function Pet() {
         spriteUrl: '/sprites/cat.png',
         isCustom: false,
       };
-    if (currentCharacter?.id !== fallback.id) {
+    if (currentCharacter?.id !== fallbackChar.id) {
       console.warn('Sprite load failed, falling back to default character:', loadError);
-      setCurrentCharacter(fallback);
+      setCurrentCharacter(fallbackChar);
     }
-  }, [loadError, characters, currentCharacter, setCurrentCharacter]);
+  }, [loadError, characters, currentCharacter, setCurrentCharacter, effectiveSpriteUrl]);
 
   const { dragProps } = useDrag({
     onDragStart: () => setCurrentState('dragging'),

@@ -65,16 +65,13 @@ export function useSprite({
   // Load sprite sheet (already has transparent background)
   useEffect(() => {
     let cancelled = false;
-    setLoadError(null);
-    // Clear previous sprite so selection changes are visible even if load fails.
-    setSpriteSheet(null);
-    frameRef.current = 0;
 
     async function load() {
       try {
         const img = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm, spriteName);
         if (cancelled) return;
         setSpriteSheet(img);
+        setLoadError(null);
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load sprite sheet:', err);
@@ -83,6 +80,10 @@ export function useSprite({
       }
     }
 
+    // Clear previous sprite so selection changes are visible even if load fails.
+    setSpriteSheet(null);
+    setLoadError(null);
+    frameRef.current = 0;
     load();
     return () => {
       cancelled = true;
@@ -95,11 +96,13 @@ export function useSprite({
     if (spriteSheet instanceof HTMLCanvasElement) return;
     try {
       const processed = applyBackgroundRemoval(spriteSheet, backgroundRemovalAlgorithm);
-      setSpriteSheet(processed);
+      // Use callback form to avoid triggering this effect again
+      setSpriteSheet(() => processed);
     } catch (err) {
       console.error('Failed to post-process sprite sheet:', err);
     }
-  }, [spriteSheet, backgroundRemovalAlgorithm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundRemovalAlgorithm]);
 
   // 固定 canvas 内部分辨率，避免拖动缩放时频繁重置导致闪烁
   useEffect(() => {

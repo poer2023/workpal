@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window';
 import { PhysicalPosition } from '@tauri-apps/api/dpi';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -31,6 +31,7 @@ async function clampToScreen(): Promise<{ x: number; y: number } | null> {
 
 export function useDrag({ onDragStart, onDragEnd }: UseDragOptions = {}) {
   const isDraggingRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
   const setWindowPosition = useSettingsStore((state) => state.setWindowPosition);
 
   const handleMouseDown = useCallback(
@@ -38,6 +39,7 @@ export function useDrag({ onDragStart, onDragEnd }: UseDragOptions = {}) {
       if (e.button !== 0) return; // Only left click
 
       isDraggingRef.current = true;
+      setIsDragging(true);
       onDragStart?.();
 
       try {
@@ -52,6 +54,7 @@ export function useDrag({ onDragStart, onDragEnd }: UseDragOptions = {}) {
   const handleMouseUp = useCallback(async () => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
+      setIsDragging(false);
       onDragEnd?.();
 
       // Clamp to screen and save position
@@ -74,7 +77,7 @@ export function useDrag({ onDragStart, onDragEnd }: UseDragOptions = {}) {
   }, [handleMouseUp]);
 
   return {
-    isDragging: isDraggingRef.current,
+    isDragging,
     dragProps: {
       onMouseDown: handleMouseDown,
     },

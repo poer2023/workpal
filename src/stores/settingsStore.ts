@@ -147,8 +147,8 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: STORAGE_KEY,
       version: 2,
-      migrate: (persistedState: any, version: number) => {
-        let nextState = persistedState;
+      migrate: (persistedState: unknown, version: number) => {
+        let nextState = persistedState as Record<string, unknown>;
         if (version === 0) {
           // Clear invalid window position from old versions
           nextState = { ...nextState, windowPosition: null };
@@ -200,7 +200,9 @@ if (typeof window !== 'undefined') {
       const payload = { source: SETTINGS_SYNC_SOURCE, at: Date.now() };
       try {
         await emit(SETTINGS_SYNC_EVENT, payload);
-      } catch {}
+      } catch {
+        // Ignore emit errors
+      }
     };
 
     if (syncState.unsubscribeStore) {

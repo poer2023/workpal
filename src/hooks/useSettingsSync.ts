@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { emit } from '@tauri-apps/api/event';
 
@@ -21,13 +21,13 @@ const pickSyncSettings = (state: ReturnType<typeof useSettingsStore.getState>) =
 });
 
 export function useSettingsSync() {
-  const sourceRef = useRef(Math.random().toString(36).slice(2));
+  const sourceId = useMemo(() => Math.random().toString(36).slice(2), []);
 
   useEffect(() => {
     const emitToPet = async () => {
       try {
         await emit(SETTINGS_SYNC_EVENT, {
-          source: sourceRef.current,
+          source: sourceId,
           settings: pickSyncSettings(useSettingsStore.getState()),
         });
       } catch (err) {
