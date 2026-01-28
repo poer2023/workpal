@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PetState } from '../stores/settingsStore';
 import {
   loadSpriteSheet,
+  applyBackgroundRemoval,
   getFramePosition,
   getSpriteFrameSize,
   SPRITE_CONFIG,
@@ -10,6 +11,7 @@ import {
 
 interface UseSpriteOptions {
   spriteUrl: string;
+  spriteName?: string;
   state: PetState;
   size: number;
   fps?: number;
@@ -33,6 +35,7 @@ function getScaledSize(targetSize: number) {
 
 export function useSprite({
   spriteUrl,
+  spriteName,
   state,
   size,
   fps = 8,
@@ -63,16 +66,20 @@ export function useSprite({
   useEffect(() => {
     let cancelled = false;
     setLoadError(null);
+    // Clear previous sprite so selection changes are visible even if load fails.
+    setSpriteSheet(null);
+    frameRef.current = 0;
 
     async function load() {
       try {
-        const img = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm);
+        const img = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm, spriteName);
         if (cancelled) return;
         setSpriteSheet(img);
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load sprite sheet:', err);
         setLoadError(err instanceof Error ? err : new Error('Failed to load sprite sheet'));
+        setSpriteSheet(null);
       }
     }
 
@@ -80,7 +87,19 @@ export function useSprite({
     return () => {
       cancelled = true;
     };
-  }, [spriteUrl, backgroundRemovalAlgorithm]);
+  }, [spriteUrl, spriteName, backgroundRemovalAlgorithm]);
+
+  // Ensure background removal is applied even if an old image was cached.
+  useEffect(() => {
+    if (!spriteSheet || !backgroundRemovalAlgorithm) return;
+    if (spriteSheet instanceof HTMLCanvasElement) return;
+    try {
+      const processed = applyBackgroundRemoval(spriteSheet, backgroundRemovalAlgorithm);
+      setSpriteSheet(processed);
+    } catch (err) {
+      console.error('Failed to post-process sprite sheet:', err);
+    }
+  }, [spriteSheet, backgroundRemovalAlgorithm]);
 
   // 固定 canvas 内部分辨率，避免拖动缩放时频繁重置导致闪烁
   useEffect(() => {

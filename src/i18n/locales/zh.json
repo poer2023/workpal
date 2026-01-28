@@ -35,6 +35,8 @@
     "uploadErrorMissing": "请先选择图片",
     "uploadErrorName": "请输入角色名称",
     "uploadNameRequired": "请输入名称后上传",
+    "repairSuccess": "已修复自定义角色图片",
+    "repairFailed": "修复自定义角色图片失败",
     "aiPromptTemplate": "AI 提示词模板",
     "copy": "复制",
     "copied": "已复制！",
@@ -165,20 +167,11 @@
   },
   "about": {
     "appName": "WorkPal",
-    "tagline": "你的氛围编程伙伴",
+    "tagline": "你的桌面工作伙伴",
     "version": "版本",
-    "checkForUpdates": "检查",
-    "checking": "检查中...",
-    "updateStatus": {
-      "idle": "点击检查更新",
-      "checking": "正在检查更新...",
-      "latest": "已是最新版本",
-      "updateAvailable": "有新版本：v{{version}}",
-      "error": "检查更新失败"
-    },
-    "description": "WorkPal 是你友好的桌面角色，在你与 AI 助手编程时陪伴着你。它会监控你的编程助手并为你的成就喝彩！",
-    "supportedAgents": "支持的助手",
-    "soon": "即将支持"
+    "welcome": "欢迎动画",
+    "description": "WorkPal 是一只常驻桌面的像素伙伴，陪伴你工作与创作。",
+    "summary": "支持角色自定义、行为规则与通知提醒。"
   },
   "time": {
     "seconds": "{{count}}秒",

@@ -5,8 +5,9 @@ import { useSprite } from '../../hooks/useSprite';
 import { useDrag } from '../../hooks/useDrag';
 import { useActivityMonitor } from '../../hooks/useActivityMonitor';
 import { useBehaviorEngine } from '../../hooks/useBehaviorEngine';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { useSettingsStore, type PetState } from '../../stores/settingsStore';
 import { useActivityStore } from '../../stores/activityStore';
+import { isLocalFileUrl } from '../../utils/characterStorage';
 
 interface ContextMenuState {
   visible: boolean;
@@ -28,6 +29,11 @@ export function Pet() {
   useActivityStore(); // 初始化 activity store
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const actionTimerRef = useRef<number | null>(null);
+  const [overrideState, setOverrideState] = useState<PetState | null>(null);
+  const [renderSpriteUrl, setRenderSpriteUrl] = useState(
+    currentCharacter?.spriteUrl || '/sprites/cat.png'
+  );
 
   // 启动活动监控
   useActivityMonitor({ autoStart: true });
@@ -39,12 +45,26 @@ export function Pet() {
     invoke('set_always_on_top', { enabled: alwaysOnTop }).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    setRenderSpriteUrl(currentCharacter?.spriteUrl || '/sprites/cat.png');
+  }, [currentCharacter?.spriteUrl]);
+
+  const spriteName =
+    currentCharacter && (currentCharacter.isCustom || isLocalFileUrl(currentCharacter.spriteUrl))
+      ? currentCharacter.name
+      : undefined;
+  const needsRemoval = currentCharacter
+    ? !currentCharacter.backgroundRemoved
+    : false;
+
+  const effectiveState = overrideState ?? currentState;
   const { canvasRef, scaledSize, canvasSize, loadError } = useSprite({
-    spriteUrl: currentCharacter?.spriteUrl || '/sprites/cat.png',
-    state: currentState,
+    spriteUrl: renderSpriteUrl,
+    spriteName,
+    state: effectiveState,
     size: petSize,
     fps: 8,
-    backgroundRemovalAlgorithm,
+    backgroundRemovalAlgorithm: needsRemoval ? backgroundRemovalAlgorithm : undefined,
   });
 
   // Fallback to default character if sprite fails to load (e.g., missing custom asset)
@@ -52,6 +72,9 @@ export function Pet() {
     if (!loadError) return;
     if (currentCharacter?.isCustom) {
       console.warn('Custom sprite failed to load:', loadError);
+      if (renderSpriteUrl !== '/sprites/cat.png') {
+        setRenderSpriteUrl('/sprites/cat.png');
+      }
       return;
     }
     const fallback =
@@ -81,6 +104,25 @@ export function Pet() {
 
   const closeMenu = () => setContextMenu({ visible: false, x: 0, y: 0 });
 
+  const playOnce = (state: PetState, duration = 1600) => {
+    if (actionTimerRef.current) {
+      window.clearTimeout(actionTimerRef.current);
+    }
+    setOverrideState(state);
+    actionTimerRef.current = window.setTimeout(() => {
+      setOverrideState(null);
+      actionTimerRef.current = null;
+    }, duration);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (actionTimerRef.current) {
+        window.clearTimeout(actionTimerRef.current);
+      }
+    };
+  }, []);
+
   const openSettings = async () => {
     closeMenu();
     const existing = await WebviewWindow.getByLabel('settings');
@@ -107,6 +149,28 @@ export function Pet() {
     return () => document.removeEventListener('click', handleClick);
   }, [contextMenu.visible]);
 
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+    const menu = menuRef.current;
+    if (!menu) return;
+
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    let nextX = contextMenu.x;
+    let nextY = contextMenu.y;
+    const maxX = window.innerWidth - rect.width - padding;
+    const maxY = window.innerHeight - rect.height - padding;
+    if (rect.right > window.innerWidth - padding) {
+      nextX = Math.max(padding, maxX);
+    }
+    if (rect.bottom > window.innerHeight - padding) {
+      nextY = Math.max(padding, maxY);
+    }
+    if (nextX !== contextMenu.x || nextY !== contextMenu.y) {
+      setContextMenu({ visible: true, x: nextX, y: nextY });
+    }
+  }, [contextMenu.visible, contextMenu.x, contextMenu.y]);
+
   return (
     <div
       className="cursor-grab active:cursor-grabbing select-none relative"
@@ -123,7 +187,7 @@ export function Pet() {
       {contextMenu.visible && (
         <div
           ref={menuRef}
-          className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[120px]"
+          className="fixed bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/60 py-1 z-50 min-w-[140px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button
@@ -131,6 +195,24 @@ export function Pet() {
             className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
           >
             ⚙️ Settings
+          </button>
+          <button
+            onClick={() => {
+              closeMenu();
+              playOnce('happy', 1400);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+          >
+            😊 Say Hi
+          </button>
+          <button
+            onClick={() => {
+              closeMenu();
+              playOnce('excited', 1600);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+          >
+            🎉 Celebrate
           </button>
         </div>
       )}

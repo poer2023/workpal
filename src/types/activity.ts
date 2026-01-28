@@ -1,3 +1,5 @@
+import type { PetState } from '../stores/settingsStore';
+
 // 活动状态 - 对应 Rust 后端的 ActivityState
 export type ActivityState =
   | 'idle'
@@ -52,7 +54,7 @@ export interface ActivityStateChangedEvent {
 }
 
 // 活动状态到宠物状态的映射
-export const activityToPetState: Record<ActivityState, string> = {
+export const activityToPetState: Record<ActivityState, PetState> = {
   idle: 'idle',
   coding: 'working',
   designing: 'working',

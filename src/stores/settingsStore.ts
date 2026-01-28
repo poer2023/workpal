@@ -3,16 +3,6 @@ import { persist } from 'zustand/middleware';
 import { enable, disable } from '@tauri-apps/plugin-autostart';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
-import { SPRITE_CONFIG } from '../utils/spriteLoader';
-
-// 计算等比缩放后的尺寸
-function getScaledSize(targetSize: number) {
-  const { frameWidth, frameHeight } = SPRITE_CONFIG;
-  const aspectRatio = frameWidth / frameHeight;
-  const width = Math.round(targetSize * aspectRatio);
-  const height = targetSize;
-  return { width, height };
-}
 
 export type PetState = 'idle' | 'happy' | 'excited' | 'sleepy' | 'working' | 'angry' | 'dragging';
 
@@ -21,6 +11,7 @@ export interface Character {
   name: string;
   spriteUrl: string;
   isCustom: boolean;
+  backgroundRemoved?: boolean;
 }
 
 interface WindowPosition {
@@ -50,6 +41,7 @@ interface SettingsState {
   setCurrentCharacter: (character: Character) => void;
   addCharacter: (character: Character) => void;
   removeCharacter: (id: string) => void;
+  updateCharacter: (id: string, patch: Partial<Character>) => void;
   setPetSize: (size: number) => void;
   setCharacterName: (name: string) => void;
   setTheme: (theme: 'system' | 'light' | 'dark') => void;
@@ -71,6 +63,7 @@ const defaultCharacters: Character[] = [
     name: 'Cat',
     spriteUrl: '/sprites/cat.png',
     isCustom: false,
+    backgroundRemoved: true,
   },
 ];
 
@@ -121,6 +114,14 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           characters: state.characters.filter((c) => c.id !== id),
         })),
+      updateCharacter: (id, patch) =>
+        set((state) => ({
+          characters: state.characters.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+          currentCharacter:
+            state.currentCharacter?.id === id
+              ? { ...state.currentCharacter, ...patch }
+              : state.currentCharacter,
+        })),
       setPetSize: (size) => {
         set({ petSize: size });
       },
@@ -145,59 +146,94 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       migrate: (persistedState: any, version: number) => {
+        let nextState = persistedState;
         if (version === 0) {
           // Clear invalid window position from old versions
-          return { ...persistedState, windowPosition: null };
+          nextState = { ...nextState, windowPosition: null };
         }
-        return persistedState;
+        if (version < 2 && nextState?.characters) {
+          nextState = {
+            ...nextState,
+            characters: nextState.characters.map((char: Character) => ({
+              ...char,
+              backgroundRemoved:
+                typeof char.backgroundRemoved === 'boolean'
+                  ? char.backgroundRemoved
+                  : char.isCustom
+                    ? false
+                    : true,
+            })),
+          };
+        }
+        return nextState;
       },
     }
   )
 );
 
 if (typeof window !== 'undefined') {
-  const globalWindow = window as Window & { __workpalSettingsSync__?: boolean };
-  if (!globalWindow.__workpalSettingsSync__) {
-    globalWindow.__workpalSettingsSync__ = true;
-    window.addEventListener('storage', (event) => {
-      if (event.key === STORAGE_KEY) {
-        useSettingsStore.persist.rehydrate();
+  type SyncState = {
+    storageHandler?: (event: StorageEvent) => void;
+    unsubscribeStore?: () => void;
+    unlisten?: () => void;
+  };
+  const globalWindow = window as Window & { __workpalSettingsSync__?: SyncState };
+  const syncState = globalWindow.__workpalSettingsSync__ || {};
+  globalWindow.__workpalSettingsSync__ = syncState;
+
+  if (syncState.storageHandler) {
+    window.removeEventListener('storage', syncState.storageHandler);
+  }
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) {
+      useSettingsStore.persist.rehydrate();
+    }
+  };
+  window.addEventListener('storage', storageHandler);
+  syncState.storageHandler = storageHandler;
+
+  if (isTauri()) {
+    let isApplyingSync = false;
+    const emitSync = async () => {
+      const payload = { source: SETTINGS_SYNC_SOURCE, at: Date.now() };
+      try {
+        await emit(SETTINGS_SYNC_EVENT, payload);
+      } catch {}
+    };
+
+    if (syncState.unsubscribeStore) {
+      syncState.unsubscribeStore();
+    }
+    syncState.unsubscribeStore = useSettingsStore.subscribe((state, prev) => {
+      if (isApplyingSync) return;
+      if (shouldSyncSettings(state, prev)) {
+        emitSync();
       }
     });
 
-    if (isTauri()) {
-      let isApplyingSync = false;
-      const emitSync = async () => {
-        const payload = { source: SETTINGS_SYNC_SOURCE, at: Date.now() };
-        try {
-          await emit(SETTINGS_SYNC_EVENT, payload);
-        } catch {}
-      };
-
-      useSettingsStore.subscribe((state, prev) => {
-        if (isApplyingSync) return;
-        if (shouldSyncSettings(state, prev)) {
-          emitSync();
-        }
-      });
-
-      listen(SETTINGS_SYNC_EVENT, (event) => {
-        const payload = event.payload as { source?: string; settings?: Partial<SettingsState> };
-        if (!payload || payload.source === SETTINGS_SYNC_SOURCE) return;
-        isApplyingSync = true;
-        const apply = async () => {
-          if (payload.settings) {
-            useSettingsStore.setState(payload.settings);
-            return;
-          }
-          await useSettingsStore.persist.rehydrate();
-        };
-        void apply().finally(() => {
-          isApplyingSync = false;
-        });
-      }).catch(() => {});
+    if (syncState.unlisten) {
+      syncState.unlisten();
     }
+    listen(SETTINGS_SYNC_EVENT, (event) => {
+      const payload = event.payload as { source?: string; settings?: Partial<SettingsState> };
+      if (!payload || payload.source === SETTINGS_SYNC_SOURCE) return;
+      isApplyingSync = true;
+      const apply = async () => {
+        if (payload.settings) {
+          useSettingsStore.setState(payload.settings);
+          return;
+        }
+        await useSettingsStore.persist.rehydrate();
+      };
+      void apply().finally(() => {
+        isApplyingSync = false;
+      });
+    })
+      .then((unlisten) => {
+        syncState.unlisten = unlisten;
+      })
+      .catch(() => {});
   }
 }

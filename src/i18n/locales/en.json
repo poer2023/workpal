@@ -35,6 +35,8 @@
     "uploadErrorMissing": "Please choose an image first",
     "uploadErrorName": "Please enter a character name",
     "uploadNameRequired": "Enter a name before uploading",
+    "repairSuccess": "Custom sprite repaired",
+    "repairFailed": "Failed to repair custom sprite",
     "aiPromptTemplate": "AI Prompt Template",
     "copy": "Copy",
     "copied": "Copied!",
@@ -165,20 +167,11 @@
   },
   "about": {
     "appName": "WorkPal",
-    "tagline": "Your Vibe Coding Companion",
+    "tagline": "Your Desktop Work Companion",
     "version": "Version",
-    "checkForUpdates": "Check",
-    "checking": "Checking...",
-    "updateStatus": {
-      "idle": "Click to check for updates",
-      "checking": "Checking for updates...",
-      "latest": "You're on the latest version",
-      "updateAvailable": "Update available: v{{version}}",
-      "error": "Failed to check for updates"
-    },
-    "description": "WorkPal is your friendly desktop character that keeps you company while you code with AI assistants. It monitors your coding agents and celebrates your achievements!",
-    "supportedAgents": "Supported Agents",
-    "soon": "Soon"
+    "welcome": "Welcome Animation",
+    "description": "WorkPal is a pixel companion that lives on your desktop.",
+    "summary": "Custom characters, behavior rules, and notification reminders."
   },
   "time": {
     "seconds": "{{count}}s",

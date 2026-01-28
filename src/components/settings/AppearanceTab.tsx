@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type Character } from '../../stores/settingsStore';
 import { CharacterCard } from './ui/CharacterCard';
@@ -6,26 +6,50 @@ import { CharacterPreview } from './ui/CharacterPreview';
 import { Slider } from './ui/Slider';
 import { Select } from './ui/Select';
 import { Toggle } from './ui/Toggle';
-import { saveCharacterImage, deleteCharacterImage } from '../../utils/characterStorage';
+import {
+  saveCharacterImage,
+  deleteCharacterImage,
+  readCharacterImageBytes,
+  bytesToPngDataUrl,
+  detectImageMime,
+  isLocalFileUrl,
+} from '../../utils/characterStorage';
+import { applyBackgroundRemoval, loadSpriteSheet } from '../../utils/spriteLoader';
 
-const AI_PROMPT_TEMPLATE = `Create a pixel art sprite sheet for a desktop pet character.
+const AI_PROMPT_TEMPLATE = `Create ONE pixel-art sprite sheet for a desktop pet character.
+Use the uploaded reference image to match the character's identity (shape, colors, outfit).
+Only replace the [CHARACTER DESCRIPTION] line; keep everything else unchanged.
 
-Specifications:
-- Size: 2208x1920 pixels (8 columns × 7 rows)
-- Frame size: 276x274 pixels per frame
-- Background: #ff00ff (magenta, will be transparent)
-- Style: Cute, expressive pixel art
+ABSOLUTE REQUIREMENTS (must be exact):
+- Output format: PNG
+- Canvas size: 2208x1920 px
+- Grid: 8 columns x 7 rows (56 frames total)
+- Each frame: 276x274 px
+- No padding, no margins, no borders; frames align perfectly to the grid
+- Background: solid #FF00FF (magenta) everywhere outside the character
+- No transparency or alpha channel; background stays pure #FF00FF
+- Single sprite sheet only (not separate images, not a collage)
+- No text, no watermark, no UI elements
 
-Animation rows (top to bottom):
-Row 1: Idle animation (8 frames) - gentle breathing/blinking
-Row 2: Happy animation (8 frames) - celebrating, jumping
-Row 3: Excited animation (8 frames) - very energetic movement
-Row 4: Sleepy animation (8 frames) - yawning, nodding off
-Row 5: Working animation (8 frames) - typing, focused
-Row 6: Angry animation (8 frames) - frustrated expression
-Row 7: Dragging animation (8 frames) - being picked up
+PIXEL ART STYLE:
+- Crisp pixel art, hard edges, no blur, no anti-aliasing
+- Consistent scale/position across all frames
+- Keep character centered with a fixed baseline (feet aligned)
 
-Make the character [YOUR CHARACTER DESCRIPTION HERE].`;
+ANIMATION ROWS (top to bottom), 8 frames each:
+1) Idle: gentle breathing/blink
+2) Happy: celebrate/jump
+3) Excited: energetic movement
+4) Sleepy: yawn/nod
+5) Working: typing/focused
+6) Angry: frustrated
+7) Dragging: being picked up/dragged
+
+Character description:
+[CHARACTER DESCRIPTION]
+
+Negative (avoid):
+3D, realistic rendering, painterly, gradients, shadows outside character, soft edges, blur, anti-aliasing, extra borders, wrong size, wrong grid, multiple sheets`;
 
 export function AppearanceTab() {
   const { t } = useTranslation();
@@ -39,6 +63,7 @@ export function AppearanceTab() {
     setCurrentCharacter,
     addCharacter,
     removeCharacter,
+    updateCharacter,
     setPetSize,
     setIdleAnimations,
     setAlwaysOnTop,
@@ -48,13 +73,101 @@ export function AppearanceTab() {
   const [customName, setCustomName] = useState('');
   const [showFormatInfo, setShowFormatInfo] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const repairingRef = useRef<Set<string>>(new Set());
 
   const nameRequired = Boolean(selectedFile) && !customName.trim();
   const availableCharacters = characters;
+
+  useEffect(() => {
+    let cancelled = false;
+    const schedule =
+      typeof window !== 'undefined' && 'requestIdleCallback' in window
+        ? (fn: () => void) =>
+            (window as Window & {
+              requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number;
+            }).requestIdleCallback(fn, { timeout: 2000 })
+        : (fn: () => void) => window.setTimeout(fn, 50);
+
+    const handle = schedule(async () => {
+      for (const char of characters) {
+        if (cancelled) return;
+        const isLocal = char.isCustom || isLocalFileUrl(char.spriteUrl);
+        const needsRemoval = isLocal && !char.backgroundRemoved;
+        try {
+          await loadSpriteSheet(
+            char.spriteUrl,
+            needsRemoval ? backgroundRemovalAlgorithm : undefined,
+            isLocal ? char.name : undefined
+          );
+        } catch {}
+        // Yield between characters to keep UI responsive
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(handle as number);
+      } else {
+        clearTimeout(handle as number);
+      }
+    };
+  }, [characters, backgroundRemovalAlgorithm]);
+
+  const ensureCustomCharacterReady = async (character: Character) => {
+    if (!character.isCustom) return;
+    if (repairingRef.current.has(character.id)) return;
+    repairingRef.current.add(character.id);
+    try {
+      const bytes = await readCharacterImageBytes(character.name);
+      const mime = detectImageMime(bytes);
+      let updated = false;
+      if (mime && mime !== 'image/png') {
+        const pngDataUrl = await bytesToPngDataUrl(bytes, mime);
+        const spriteUrl = await saveCharacterImage(character.name, pngDataUrl);
+        updateCharacter(character.id, { spriteUrl });
+        updated = true;
+      }
+
+      if (backgroundRemovalAlgorithm && !character.backgroundRemoved) {
+        const latestBytes = updated ? await readCharacterImageBytes(character.name) : bytes;
+        const latestMime = updated ? detectImageMime(latestBytes) : mime;
+        const blob = new Blob([latestBytes], { type: latestMime || 'application/octet-stream' });
+        const objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.decoding = 'async';
+        const decoded = await new Promise<HTMLImageElement>((resolve, reject) => {
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to decode image'));
+          img.src = objectUrl;
+        });
+        URL.revokeObjectURL(objectUrl);
+        const processed = applyBackgroundRemoval(decoded, backgroundRemovalAlgorithm);
+        if (processed instanceof HTMLCanvasElement) {
+          const dataUrl = processed.toDataURL('image/png');
+          const spriteUrl = await saveCharacterImage(character.name, dataUrl);
+          updateCharacter(character.id, { spriteUrl, backgroundRemoved: true });
+          updated = true;
+        }
+      }
+
+      if (updated) {
+        setRepairStatus({ type: 'success', message: t('appearance.repairSuccess') });
+        setTimeout(() => setRepairStatus(null), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to repair custom character:', err);
+      setRepairStatus({ type: 'error', message: t('appearance.repairFailed') });
+      setTimeout(() => setRepairStatus(null), 2000);
+      repairingRef.current.delete(character.id);
+    }
+  };
 
   // 处理文件选择（只预览，不上传）
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +239,7 @@ export function AppearanceTab() {
         name: finalName,
         spriteUrl,  // Now it's asset:// URL, not base64
         isCustom: true,
+        backgroundRemoved: false,
       };
       addCharacter(newChar);
       setCurrentCharacter(newChar);
@@ -169,7 +283,10 @@ export function AppearanceTab() {
               key={char.id}
               character={char}
               isSelected={currentCharacter?.id === char.id}
-              onSelect={() => setCurrentCharacter(char)}
+              onSelect={() => {
+                void ensureCustomCharacterReady(char);
+                setCurrentCharacter(char);
+              }}
               onDelete={
                 char.isCustom
                   ? async () => {
@@ -257,6 +374,11 @@ export function AppearanceTab() {
         )}
         {nameRequired && !uploadError && (
           <p className="text-xs text-amber-500 mb-2">{t('appearance.uploadNameRequired')}</p>
+        )}
+        {repairStatus && (
+          <p className={`text-xs mb-2 ${repairStatus.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+            {repairStatus.message}
+          </p>
         )}
 
         {/* 文件预览和上传确认 */}

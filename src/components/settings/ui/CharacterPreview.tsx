@@ -3,6 +3,7 @@ import { loadSpriteSheet, getSpriteFrameSize, type BackgroundRemovalAlgorithm } 
 
 interface CharacterPreviewProps {
   spriteUrl: string;
+  spriteName?: string;
   size?: number;
   className?: string;
   backgroundRemovalAlgorithm?: BackgroundRemovalAlgorithm;
@@ -20,13 +21,40 @@ function getScaledSize(targetSize: number) {
   return { width, height };
 }
 
+function waitForImageReady(img: HTMLImageElement) {
+  if (img.complete && img.naturalWidth > 0) {
+    return Promise.resolve();
+  }
+  if (img.complete && img.naturalWidth === 0) {
+    return Promise.reject(new Error('Image failed to load'));
+  }
+  return new Promise<void>((resolve, reject) => {
+    const handleLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error('Image failed to load'));
+    };
+    const cleanup = () => {
+      img.removeEventListener('load', handleLoad);
+      img.removeEventListener('error', handleError);
+    };
+    img.addEventListener('load', handleLoad);
+    img.addEventListener('error', handleError);
+  });
+}
+
 export function CharacterPreview({
   spriteUrl,
+  spriteName,
   size = 64,
   className = '',
   backgroundRemovalAlgorithm,
 }: CharacterPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const retryRef = useRef(0);
   const scaled = getScaledSize(size);
 
   useEffect(() => {
@@ -37,10 +65,24 @@ export function CharacterPreview({
     if (!ctx) return;
 
     let cancelled = false;
+    retryRef.current = 0;
     const draw = async () => {
       try {
-        const sheet = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm);
+        const sheet = await loadSpriteSheet(spriteUrl, backgroundRemovalAlgorithm, spriteName);
         if (cancelled) return;
+
+        if (sheet instanceof HTMLImageElement) {
+          if (sheet.decode) {
+            try {
+              await sheet.decode();
+            } catch {}
+            if (cancelled) return;
+          }
+          if (!sheet.complete || sheet.naturalWidth === 0) {
+            await waitForImageReady(sheet);
+            if (cancelled) return;
+          }
+        }
 
         // Clear canvas
         ctx.clearRect(0, 0, scaled.width, scaled.height);
@@ -49,6 +91,9 @@ export function CharacterPreview({
         ctx.imageSmoothingEnabled = false;
 
         const { frameWidth, frameHeight } = getSpriteFrameSize(sheet);
+        if (!frameWidth || !frameHeight) {
+          throw new Error('Invalid sprite dimensions');
+        }
         // Draw first frame (idle animation, frame 0)
         // Source: top-left corner of sprite sheet
         ctx.drawImage(
@@ -62,8 +107,13 @@ export function CharacterPreview({
           scaled.width,
           scaled.height
         );
+        retryRef.current = 0;
       } catch (err) {
         console.error('Failed to load sprite preview:', err);
+        if (!cancelled && retryRef.current < 3) {
+          retryRef.current += 1;
+          setTimeout(draw, 200 * retryRef.current);
+        }
       }
     };
 
@@ -71,7 +121,7 @@ export function CharacterPreview({
     return () => {
       cancelled = true;
     };
-  }, [spriteUrl, size, scaled.width, scaled.height, backgroundRemovalAlgorithm]);
+  }, [spriteUrl, spriteName, size, scaled.width, scaled.height, backgroundRemovalAlgorithm]);
 
   return (
     <canvas

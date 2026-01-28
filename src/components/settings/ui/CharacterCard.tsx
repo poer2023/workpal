@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Character } from '../../../stores/settingsStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { CharacterPreview } from './CharacterPreview';
+import { isLocalFileUrl } from '../../../utils/characterStorage';
 
 interface CharacterCardProps {
   character: Character;
@@ -11,23 +12,31 @@ interface CharacterCardProps {
 }
 
 export function CharacterCard({ character, isSelected, onSelect, onDelete }: CharacterCardProps) {
-  const { characterName, setCharacterName, backgroundRemovalAlgorithm } = useSettingsStore();
+  const { setCharacterName, updateCharacter, backgroundRemovalAlgorithm } = useSettingsStore();
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(characterName);
+  const [editValue, setEditValue] = useState(character.name);
   const canEditName = isSelected && !character.isCustom;
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(character.name);
+    }
+  }, [character.name, isEditing]);
 
   const handleNameClick = (e: React.MouseEvent) => {
     if (canEditName) {
       e.stopPropagation();
-      setEditValue(characterName);
+      setEditValue(character.name);
       setIsEditing(true);
     }
   };
 
   const handleNameBlur = () => {
     setIsEditing(false);
-    if (editValue.trim()) {
-      setCharacterName(editValue.trim());
+    const nextName = editValue.trim();
+    if (nextName && nextName !== character.name) {
+      updateCharacter(character.id, { name: nextName });
+      setCharacterName(nextName);
     }
   };
 
@@ -36,12 +45,13 @@ export function CharacterCard({ character, isSelected, onSelect, onDelete }: Cha
       handleNameBlur();
     } else if (e.key === 'Escape') {
       setIsEditing(false);
-      setEditValue(characterName);
+      setEditValue(character.name);
     }
   };
 
-  // Display user's custom name for selected character, otherwise show character type name
-  const displayName = character.isCustom ? character.name : isSelected ? characterName : character.name;
+  const needsRemoval =
+    (character.isCustom || isLocalFileUrl(character.spriteUrl)) && !character.backgroundRemoved;
+  const displayName = character.name;
 
   return (
     <div
@@ -58,8 +68,9 @@ export function CharacterCard({ character, isSelected, onSelect, onDelete }: Cha
       <div className="w-16 h-16 flex items-center justify-center mb-2">
         <CharacterPreview
           spriteUrl={character.spriteUrl}
+          spriteName={character.isCustom || isLocalFileUrl(character.spriteUrl) ? character.name : undefined}
           size={64}
-          backgroundRemovalAlgorithm={backgroundRemovalAlgorithm}
+          backgroundRemovalAlgorithm={needsRemoval ? backgroundRemovalAlgorithm : undefined}
         />
       </div>
 

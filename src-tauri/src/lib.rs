@@ -7,6 +7,9 @@ use commands::{
     MonitorState,
 };
 use tauri::{Manager, AppHandle};
+use tauri::menu::Menu;
+use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+use tauri::{WebviewWindowBuilder, WebviewUrl};
 use std::path::PathBuf;
 use tauri_plugin_autostart::MacosLauncher;
 
@@ -34,6 +37,24 @@ fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Resu
         .body(body)
         .show()
         .map_err(|e| e.to_string())
+}
+
+fn open_settings_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+
+    let _ = WebviewWindowBuilder::new(
+        app,
+        "settings",
+        WebviewUrl::App("settings.html".into()),
+    )
+    .title("WorkPal Settings")
+    .inner_size(740.0, 600.0)
+    .resizable(true)
+    .build();
 }
 
 #[tauri::command]
@@ -70,6 +91,23 @@ fn read_character_image(app: AppHandle, path: String) -> Result<Vec<u8>, String>
     std::fs::read(candidate).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn read_character_image_by_name(app: AppHandle, name: String) -> Result<Vec<u8>, String> {
+    if name.contains('/') || name.contains('\\') {
+        return Err("Invalid name".to_string());
+    }
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let characters_dir = app_data.join("characters");
+    let candidates = ["png", "jpg", "jpeg", "webp"];
+    for ext in candidates {
+        let file_path = characters_dir.join(format!("{}.{}", name, ext));
+        if file_path.exists() {
+            return std::fs::read(file_path).map_err(|e| e.to_string());
+        }
+    }
+    Err("Character image not found".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -90,7 +128,8 @@ pub fn run() {
             is_monitoring_active,
             save_character_image,
             delete_character_image,
-            read_character_image
+            read_character_image,
+            read_character_image_by_name
         ])
         .manage(MonitorState::default())
         .setup(|app| {
@@ -107,7 +146,33 @@ pub fn run() {
                     ns_window.setOpaque_(cocoa::base::NO);
                     ns_window.setBackgroundColor_(cocoa::appkit::NSColor::clearColor(nil));
                 }
+
+                // Make the app a menu bar accessory (hide dock icon, show tray by default)
+                let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
+
+            let tray_menu = Menu::new(app)?;
+            let mut tray_builder = TrayIconBuilder::new()
+                .tooltip("WorkPal")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click { button, button_state, .. } => {
+                        if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                            open_settings_window(tray.app_handle());
+                        }
+                    }
+                    TrayIconEvent::DoubleClick { .. } => {
+                        open_settings_window(tray.app_handle());
+                    }
+                    _ => {}
+                });
+
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+
+            let _ = tray_builder.build(app);
 
             Ok(())
         })

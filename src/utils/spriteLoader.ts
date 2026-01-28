@@ -22,7 +22,20 @@ export const STATE_ROW_MAP: Record<PetState, number> = {
   dragging: 6,
 };
 
-const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
+const SPRITE_CACHE = new Map<string, CanvasImageSource>();
+const SPRITE_PROMISES = new Map<string, Promise<CanvasImageSource>>();
+const MAX_SPRITE_CACHE = 8;
+
+function getCacheKey(url: string, algorithm?: BackgroundRemovalAlgorithm, spriteName?: string) {
+  return `${algorithm || 'none'}|${spriteName || ''}|${url}`;
+}
+
+function setSpriteCache(key: string, value: CanvasImageSource) {
+  SPRITE_CACHE.set(key, value);
+  if (SPRITE_CACHE.size <= MAX_SPRITE_CACHE) return;
+  const firstKey = SPRITE_CACHE.keys().next().value as string | undefined;
+  if (firstKey) SPRITE_CACHE.delete(firstKey);
+}
 
 const ASSET_PREFIXES = [
   'asset://localhost/',
@@ -31,28 +44,96 @@ const ASSET_PREFIXES = [
   'file://',
 ];
 
-function decodeAssetUrlToPath(url: string) {
-  const prefix = ASSET_PREFIXES.find((item) => url.startsWith(item));
-  if (!prefix) return null;
-  const encoded = url.slice(prefix.length);
+function isSameOriginUrl(url: string) {
+  if (typeof window === 'undefined') return false;
   try {
-    return decodeURIComponent(encoded);
+    const resolved = new URL(url, window.location.href);
+    return resolved.origin === window.location.origin;
   } catch {
-    return encoded;
+    return false;
   }
 }
 
-async function loadLocalSpriteViaIpc(url: string) {
-  if (!isTauri()) return null;
-  const filePath = decodeAssetUrlToPath(url);
-  if (!filePath) return null;
+function normalizeAssetPath(rawPath: string) {
+  if (!rawPath) return null;
+  let decoded = rawPath;
   try {
-    const bytes = await invoke<number[]>('read_character_image', { path: filePath });
+    decoded = decodeURIComponent(rawPath);
+  } catch {
+    decoded = rawPath;
+  }
+
+  // URL pathname always starts with "/" on macOS/Linux; strip for Windows drive letters.
+  if (/^\/[A-Za-z]:[\\/]/.test(decoded)) {
+    decoded = decoded.slice(1);
+  }
+
+  // Ensure absolute POSIX path when missing leading slash.
+  if (!decoded.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(decoded)) {
+    decoded = `/${decoded}`;
+  }
+
+  return decoded;
+}
+
+function decodeAssetUrlToPath(url: string) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const { protocol, hostname, pathname } = parsed;
+    const isAssetProtocol =
+      (protocol === 'asset:' || protocol === 'tauri:') && (hostname === 'localhost' || hostname === '');
+    const isAssetHttp =
+      protocol === 'http:' &&
+      (hostname === 'asset.localhost' || hostname === 'localhost' || hostname === '127.0.0.1');
+    const isFile = protocol === 'file:';
+    if (!isAssetProtocol && !isAssetHttp && !isFile) return null;
+    if (isAssetHttp && pathname.startsWith('/asset/')) {
+      return normalizeAssetPath(pathname.slice('/asset/'.length));
+    }
+    return normalizeAssetPath(pathname);
+  } catch {
+    const prefix = ASSET_PREFIXES.find((item) => url.startsWith(item));
+    if (!prefix) return null;
+    const encoded = url.slice(prefix.length);
+    return normalizeAssetPath(encoded);
+  }
+}
+
+function deriveNameFromPath(filePath: string) {
+  if (!filePath) return null;
+  const parts = filePath.split(/[\\/]/);
+  const last = parts[parts.length - 1];
+  if (!last) return null;
+  return last.replace(/\.[^.]+$/, '');
+}
+
+async function loadLocalSpriteViaIpc(filePath?: string | null, fallbackName?: string | null) {
+  try {
+    let bytes: number[] | null = null;
+    if (filePath) {
+      try {
+        bytes = await invoke<number[]>('read_character_image', { path: filePath });
+      } catch (err) {
+        const name = fallbackName || deriveNameFromPath(filePath);
+        if (name) {
+          bytes = await invoke<number[]>('read_character_image_by_name', { name });
+        } else {
+          throw err;
+        }
+      }
+    }
+    if (!bytes?.length && fallbackName) {
+      bytes = await invoke<number[]>('read_character_image_by_name', { name: fallbackName });
+    }
     if (!bytes?.length) return null;
-    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
+    const byteArray = new Uint8Array(bytes);
+    const mime = detectImageMime(byteArray);
+    const blob = new Blob([byteArray], { type: mime });
     const objectUrl = URL.createObjectURL(blob);
     return await new Promise<CanvasImageSource>((resolve, reject) => {
       const img = new Image();
+      img.decoding = 'async';
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
         resolve(img);
@@ -64,9 +145,60 @@ async function loadLocalSpriteViaIpc(url: string) {
       img.src = objectUrl;
     });
   } catch (err) {
-    console.error('Failed to load local sprite via IPC:', err);
+    console.error('Failed to load local sprite via IPC:', {
+      filePath,
+      fallbackName,
+      err,
+    });
     return null;
   }
+}
+
+function detectImageMime(bytes: Uint8Array): string {
+  if (bytes.length >= 12) {
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0d &&
+      bytes[5] === 0x0a &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0x0a
+    ) {
+      return 'image/png';
+    }
+    // JPEG signature: FF D8 FF
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      return 'image/jpeg';
+    }
+    // GIF signature: GIF87a/GIF89a
+    if (
+      bytes[0] === 0x47 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x38 &&
+      (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+      bytes[5] === 0x61
+    ) {
+      return 'image/gif';
+    }
+    // WEBP signature: RIFF....WEBP
+    if (
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    ) {
+      return 'image/webp';
+    }
+  }
+  return 'application/octet-stream';
 }
 
 function getSpriteSheetSize(
@@ -97,6 +229,23 @@ function getSpriteSheetSize(
   return { width: SPRITE_CONFIG.totalWidth, height: SPRITE_CONFIG.totalHeight };
 }
 
+export function applyBackgroundRemoval(
+  sheet: CanvasImageSource,
+  algorithm: BackgroundRemovalAlgorithm
+): CanvasImageSource {
+  const { width, height } = getSpriteSheetSize(sheet);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return sheet;
+  ctx.drawImage(sheet, 0, 0, width, height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const processed = removeMagentaBackground(imageData, algorithm);
+  ctx.putImageData(processed, 0, 0);
+  return canvas;
+}
+
 export function getSpriteFrameSize(sheet?: CanvasImageSource) {
   const { width, height } = getSpriteSheetSize(sheet);
   return {
@@ -107,49 +256,72 @@ export function getSpriteFrameSize(sheet?: CanvasImageSource) {
 
 export async function loadSpriteSheet(
   url: string,
-  algorithm?: BackgroundRemovalAlgorithm
+  algorithm?: BackgroundRemovalAlgorithm,
+  spriteName?: string
 ): Promise<CanvasImageSource> {
-  const isLocalFile = Boolean(decodeAssetUrlToPath(url)) || url.startsWith('asset://');
+  const cacheKey = getCacheKey(url, algorithm, spriteName);
+  const cached = SPRITE_CACHE.get(cacheKey);
+  if (cached) return cached;
+  const pending = SPRITE_PROMISES.get(cacheKey);
+  if (pending) return pending;
 
-  if (isLocalFile) {
-    const localSprite = await loadLocalSpriteViaIpc(url);
+  const loadPromise = (async () => {
+  const localPath = decodeAssetUrlToPath(url);
+  const isLocalFile =
+    Boolean(localPath) ||
+    url.startsWith('asset://') ||
+    url.startsWith('tauri://') ||
+    url.startsWith('http://asset.localhost') ||
+    url.startsWith('file://');
+  const isSameOrigin = isSameOriginUrl(url);
+
+  if (isLocalFile || spriteName) {
+    const localSprite = await loadLocalSpriteViaIpc(localPath, spriteName);
     if (localSprite) {
+      if (algorithm) {
+        return applyBackgroundRemoval(localSprite, algorithm);
+      }
       return localSprite;
     }
   }
 
-  return new Promise((resolve, reject) => {
+  return await new Promise<CanvasImageSource>((resolve, reject) => {
     const img = new Image();
+    let resolved = false;
     // Only request CORS-enabled fetches for non-local URLs. Asset/tauri schemes
     // typically don't provide CORS headers, and forcing anonymous CORS would fail.
-    if (!isLocalFile) {
+    if (!isLocalFile && !isSameOrigin) {
       img.crossOrigin = 'anonymous';
     }
+    img.decoding = 'async';
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      if (!algorithm) {
+        resolve(img);
+        return;
+      }
+      resolve(applyBackgroundRemoval(img, algorithm));
+    };
     img.onload = () => {
-      // Skip background removal for local file URLs to avoid CORS-tainted canvases.
-      if (!algorithm || isLocalFile) {
-        resolve(img);
-        return;
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(img);
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const processed = removeMagentaBackground(imageData, algorithm);
-      ctx.putImageData(processed, 0, 0);
-      resolve(canvas);
+      finish();
     };
     img.onerror = reject;
     img.src = url;
+    if (img.decode) {
+      img.decode().then(finish).catch(() => {});
+    }
   });
+  })();
+
+  SPRITE_PROMISES.set(cacheKey, loadPromise);
+  try {
+    const result = await loadPromise;
+    setSpriteCache(cacheKey, result);
+    return result;
+  } finally {
+    SPRITE_PROMISES.delete(cacheKey);
+  }
 }
 
 export function getFramePosition(
