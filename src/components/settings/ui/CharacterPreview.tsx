@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { loadSpriteSheet, type BackgroundRemovalAlgorithm } from '../../../utils/spriteLoader';
+import { loadSpriteSheet, getSpriteFrameSize, type BackgroundRemovalAlgorithm } from '../../../utils/spriteLoader';
 
 interface CharacterPreviewProps {
   spriteUrl: string;
@@ -48,14 +48,15 @@ export function CharacterPreview({
         // Enable pixel art rendering
         ctx.imageSmoothingEnabled = false;
 
+        const { frameWidth, frameHeight } = getSpriteFrameSize(sheet);
         // Draw first frame (idle animation, frame 0)
         // Source: top-left corner of sprite sheet
         ctx.drawImage(
           sheet,
           0,
           0,
-          FRAME_WIDTH,
-          FRAME_HEIGHT,
+          frameWidth,
+          frameHeight,
           0,
           0,
           scaled.width,

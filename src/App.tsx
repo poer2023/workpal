@@ -24,42 +24,73 @@ function App() {
       const appWindow = getCurrentWindow();
 
       try {
-        // Force center, show, and focus to ensure visibility
-        await appWindow.center();
+        // Force show + focus first (skip center API to avoid capability issues)
         await appWindow.show();
         await appWindow.setFocus();
-        console.log('Window initialized and centered');
 
-        // Then try to restore saved position if valid
-        if (windowPosition) {
-          const monitor = await currentMonitor() || await primaryMonitor();
-
-          if (monitor) {
-            const screenWidth = monitor.size.width / monitor.scaleFactor;
-            const screenHeight = monitor.size.height / monitor.scaleFactor;
-            const windowSize = petSize + 20;
-
-            const margin = 50;
-            const isWithinBounds =
-              windowPosition.x >= -margin &&
-              windowPosition.y >= -margin &&
-              windowPosition.x + windowSize <= screenWidth + margin &&
-              windowPosition.y + windowSize <= screenHeight + margin;
-
-            if (isWithinBounds) {
-              await appWindow.setPosition(
-                new PhysicalPosition(windowPosition.x, windowPosition.y)
-              );
-              console.log('Restored saved position:', windowPosition);
-            } else {
-              console.log('Saved position out of bounds, keeping centered');
-            }
+        const safeGetMonitor = async () => {
+          try {
+            return (await currentMonitor()) || (await primaryMonitor());
+          } catch {
+            return null;
           }
+        };
+
+        const centerOnMonitor = async () => {
+          const monitor = await safeGetMonitor();
+          if (!monitor) {
+            await appWindow
+              .setPosition(new PhysicalPosition(50, 50))
+              .catch(() => {});
+            return;
+          }
+          const windowSize = await appWindow.outerSize();
+          const x =
+            monitor.position.x +
+            Math.round((monitor.size.width - windowSize.width) / 2);
+          const y =
+            monitor.position.y +
+            Math.round((monitor.size.height - windowSize.height) / 2);
+          await appWindow.setPosition(new PhysicalPosition(x, y));
+        };
+
+        if (windowPosition && Number.isFinite(windowPosition.x) && Number.isFinite(windowPosition.y)) {
+          await appWindow.setPosition(
+            new PhysicalPosition(windowPosition.x, windowPosition.y)
+          );
+
+          const activeMonitor = await safeGetMonitor();
+          if (!activeMonitor) {
+            await centerOnMonitor();
+            return;
+          }
+
+          const windowSize = await appWindow.outerSize();
+          const margin = 50;
+          const minX = activeMonitor.position.x - margin;
+          const minY = activeMonitor.position.y - margin;
+          const maxX = activeMonitor.position.x + activeMonitor.size.width - windowSize.width + margin;
+          const maxY = activeMonitor.position.y + activeMonitor.size.height - windowSize.height + margin;
+
+          const isWithinBounds =
+            windowPosition.x >= minX &&
+            windowPosition.y >= minY &&
+            windowPosition.x <= maxX &&
+            windowPosition.y <= maxY;
+
+          if (!isWithinBounds) {
+            await centerOnMonitor();
+          }
+        } else {
+          await centerOnMonitor();
         }
       } catch (err) {
         console.error('Failed to initialize window:', err);
-        await appWindow.center().catch(() => {});
         await appWindow.show().catch(() => {});
+        // Last-resort: move into view near top-left
+        await appWindow
+          .setPosition(new PhysicalPosition(50, 50))
+          .catch(() => {});
       }
     };
     initWindow();

@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { PetState } from '../stores/settingsStore';
 
 export type BackgroundRemovalAlgorithm = 'hsl' | 'rgb';
@@ -21,15 +22,112 @@ export const STATE_ROW_MAP: Record<PetState, number> = {
   dragging: 6,
 };
 
-export function loadSpriteSheet(
+const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
+
+const ASSET_PREFIXES = [
+  'asset://localhost/',
+  'tauri://localhost/',
+  'http://asset.localhost/',
+  'file://',
+];
+
+function decodeAssetUrlToPath(url: string) {
+  const prefix = ASSET_PREFIXES.find((item) => url.startsWith(item));
+  if (!prefix) return null;
+  const encoded = url.slice(prefix.length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
+async function loadLocalSpriteViaIpc(url: string) {
+  if (!isTauri()) return null;
+  const filePath = decodeAssetUrlToPath(url);
+  if (!filePath) return null;
+  try {
+    const bytes = await invoke<number[]>('read_character_image', { path: filePath });
+    if (!bytes?.length) return null;
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
+    const objectUrl = URL.createObjectURL(blob);
+    return await new Promise<CanvasImageSource>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(img);
+      };
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+      img.src = objectUrl;
+    });
+  } catch (err) {
+    console.error('Failed to load local sprite via IPC:', err);
+    return null;
+  }
+}
+
+function getSpriteSheetSize(
+  sheet?: CanvasImageSource
+): { width: number; height: number } {
+  if (!sheet) {
+    return { width: SPRITE_CONFIG.totalWidth, height: SPRITE_CONFIG.totalHeight };
+  }
+
+  const candidate = sheet as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number };
+  const width =
+    typeof candidate.naturalWidth === 'number' && candidate.naturalWidth > 0
+      ? candidate.naturalWidth
+      : typeof candidate.width === 'number' && candidate.width > 0
+        ? candidate.width
+        : 0;
+  const height =
+    typeof candidate.naturalHeight === 'number' && candidate.naturalHeight > 0
+      ? candidate.naturalHeight
+      : typeof candidate.height === 'number' && candidate.height > 0
+        ? candidate.height
+        : 0;
+
+  if (width > 0 && height > 0) {
+    return { width, height };
+  }
+
+  return { width: SPRITE_CONFIG.totalWidth, height: SPRITE_CONFIG.totalHeight };
+}
+
+export function getSpriteFrameSize(sheet?: CanvasImageSource) {
+  const { width, height } = getSpriteSheetSize(sheet);
+  return {
+    frameWidth: Math.round(width / SPRITE_CONFIG.framesPerRow),
+    frameHeight: Math.round(height / SPRITE_CONFIG.rows),
+  };
+}
+
+export async function loadSpriteSheet(
   url: string,
   algorithm?: BackgroundRemovalAlgorithm
 ): Promise<CanvasImageSource> {
+  const isLocalFile = Boolean(decodeAssetUrlToPath(url)) || url.startsWith('asset://');
+
+  if (isLocalFile) {
+    const localSprite = await loadLocalSpriteViaIpc(url);
+    if (localSprite) {
+      return localSprite;
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Only request CORS-enabled fetches for non-local URLs. Asset/tauri schemes
+    // typically don't provide CORS headers, and forcing anonymous CORS would fail.
+    if (!isLocalFile) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
-      if (!algorithm) {
+      // Skip background removal for local file URLs to avoid CORS-tainted canvases.
+      if (!algorithm || isLocalFile) {
         resolve(img);
         return;
       }
@@ -54,12 +152,17 @@ export function loadSpriteSheet(
   });
 }
 
-export function getFramePosition(state: PetState, frameIndex: number) {
+export function getFramePosition(
+  state: PetState,
+  frameIndex: number,
+  frameWidth = SPRITE_CONFIG.frameWidth,
+  frameHeight = SPRITE_CONFIG.frameHeight
+) {
   const row = STATE_ROW_MAP[state];
   const col = frameIndex % SPRITE_CONFIG.framesPerRow;
   return {
-    x: col * SPRITE_CONFIG.frameWidth,
-    y: row * SPRITE_CONFIG.frameHeight,
+    x: col * frameWidth,
+    y: row * frameHeight,
   };
 }
 

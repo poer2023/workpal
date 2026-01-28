@@ -20,9 +20,9 @@
     "showFormatInfo": "显示格式信息",
     "hideFormatInfo": "隐藏格式信息",
     "formatInfo": {
-      "size": "推荐尺寸：1024x896px（8帧/行 × 7行）",
-      "frameSize": "帧尺寸：每帧128x128px",
-      "aspectRatio": "宽高比：≈8:7（≈1.1429）",
+      "size": "推荐尺寸：2208x1920px（8帧/行 × 7行）",
+      "frameSize": "帧尺寸：每帧276x274px",
+      "aspectRatio": "宽高比：≈1.15（整体）",
       "background": "背景：#ff00ff（洋红色，自动透明）",
       "rows": "行：待机、开心、兴奋、困倦、工作中、生气、拖动中"
     },

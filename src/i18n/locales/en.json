@@ -20,9 +20,9 @@
     "showFormatInfo": "Show format info",
     "hideFormatInfo": "Hide format info",
     "formatInfo": {
-      "size": "Recommended size: 1024x896px (8 frames/row × 7 rows)",
-      "frameSize": "Frame size: 128x128px per frame",
-      "aspectRatio": "Aspect ratio: ≈8:7 (≈1.1429)",
+      "size": "Recommended size: 2208x1920px (8 frames/row × 7 rows)",
+      "frameSize": "Frame size: 276x274px per frame",
+      "aspectRatio": "Aspect ratio: ≈1.15 (overall)",
       "background": "Background: #ff00ff (magenta, auto-transparent)",
       "rows": "Rows: Idle, Happy, Excited, Sleepy, Working, Angry, Dragging"
     },

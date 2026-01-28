@@ -7,6 +7,7 @@ import { AlertsTab } from './AlertsTab';
 import { AboutTab } from './AboutTab';
 import { useTheme } from '../../hooks/useTheme';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useSettingsSync } from '../../hooks/useSettingsSync';
 import { useSettingsStore } from '../../stores/settingsStore';
 
 export function SettingsWindow() {
@@ -15,6 +16,7 @@ export function SettingsWindow() {
   const { theme, language, setTheme, setLanguage } = useSettingsStore();
   useTheme(); // Apply theme based on settings
   useLanguage(); // Apply language based on settings
+  useSettingsSync(); // Sync settings changes to pet window
 
   // Cycle through themes: system -> light -> dark -> system
   const cycleTheme = () => {

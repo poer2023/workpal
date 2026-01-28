@@ -3,6 +3,7 @@ import { PetState } from '../stores/settingsStore';
 import {
   loadSpriteSheet,
   getFramePosition,
+  getSpriteFrameSize,
   SPRITE_CONFIG,
   type BackgroundRemovalAlgorithm,
 } from '../utils/spriteLoader';
@@ -39,9 +40,14 @@ export function useSprite({
 }: UseSpriteOptions) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [spriteSheet, setSpriteSheet] = useState<CanvasImageSource | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const frameRef = useRef(0);
   const animationRef = useRef<number | undefined>(undefined);
   const lastTimeRef = useRef(0);
+  const frameSizeRef = useRef({
+    frameWidth: SPRITE_CONFIG.frameWidth,
+    frameHeight: SPRITE_CONFIG.frameHeight,
+  });
 
   // 使用 ref 存储最新值，避免 animate 回调频繁重建
   const stateRef = useRef(state);
@@ -56,6 +62,7 @@ export function useSprite({
   // Load sprite sheet (already has transparent background)
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
 
     async function load() {
       try {
@@ -63,7 +70,9 @@ export function useSprite({
         if (cancelled) return;
         setSpriteSheet(img);
       } catch (err) {
+        if (cancelled) return;
         console.error('Failed to load sprite sheet:', err);
+        setLoadError(err instanceof Error ? err : new Error('Failed to load sprite sheet'));
       }
     }
 
@@ -81,6 +90,11 @@ export function useSprite({
       canvas.width = BASE_CANVAS_SIZE.width;
       canvas.height = BASE_CANVAS_SIZE.height;
     }
+  }, [spriteSheet]);
+
+  useEffect(() => {
+    if (!spriteSheet) return;
+    frameSizeRef.current = getSpriteFrameSize(spriteSheet);
   }, [spriteSheet]);
 
   // Animation loop - 只依赖 spriteSheet，其他值通过 ref 获取
@@ -108,13 +122,14 @@ export function useSprite({
         if (ctx) {
           ctx.imageSmoothingEnabled = false;
           ctx.clearRect(0, 0, BASE_CANVAS_SIZE.width, BASE_CANVAS_SIZE.height);
-          const { x, y } = getFramePosition(currentState, frameRef.current);
+          const { frameWidth, frameHeight } = frameSizeRef.current;
+          const { x, y } = getFramePosition(currentState, frameRef.current, frameWidth, frameHeight);
           ctx.drawImage(
             spriteSheet,
             x,
             y,
-            SPRITE_CONFIG.frameWidth,
-            SPRITE_CONFIG.frameHeight,
+            frameWidth,
+            frameHeight,
             0,
             0,
             BASE_CANVAS_SIZE.width,
@@ -135,7 +150,7 @@ export function useSprite({
     };
   }, [spriteSheet]);
 
-  return { canvasRef, scaledSize: getScaledSize(size), canvasSize: BASE_CANVAS_SIZE };
+  return { canvasRef, scaledSize: getScaledSize(size), canvasSize: BASE_CANVAS_SIZE, loadError };
 }
 
 export { getScaledSize };

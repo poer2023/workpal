@@ -6,12 +6,13 @@ import { CharacterPreview } from './ui/CharacterPreview';
 import { Slider } from './ui/Slider';
 import { Select } from './ui/Select';
 import { Toggle } from './ui/Toggle';
+import { saveCharacterImage, deleteCharacterImage } from '../../utils/characterStorage';
 
 const AI_PROMPT_TEMPLATE = `Create a pixel art sprite sheet for a desktop pet character.
 
 Specifications:
-- Size: 1024x896 pixels (8 columns × 7 rows)
-- Frame size: 128x128 pixels per frame
+- Size: 2208x1920 pixels (8 columns × 7 rows)
+- Frame size: 276x274 pixels per frame
 - Background: #ff00ff (magenta, will be transparent)
 - Style: Cute, expressive pixel art
 
@@ -102,7 +103,7 @@ export function AppearanceTab() {
   };
 
   // 确认上传
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!selectedFile || !filePreviewUrl) {
       setUploadError(t('appearance.uploadErrorMissing'));
       return;
@@ -116,21 +117,29 @@ export function AppearanceTab() {
 
     const finalName = getUniqueName(normalizedName);
 
-    const newChar: Character = {
-      id: `custom-${Date.now()}`,
-      name: finalName,
-      spriteUrl: filePreviewUrl,
-      isCustom: true,
-    };
-    addCharacter(newChar);
-    setCurrentCharacter(newChar);
-    setUploadError(null);
+    try {
+      // Save image to file system, get asset:// URL
+      const spriteUrl = await saveCharacterImage(finalName, filePreviewUrl);
 
-    // 清空状态
-    setCustomName('');
-    setSelectedFile(null);
-    setFilePreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      const newChar: Character = {
+        id: `custom-${Date.now()}`,
+        name: finalName,
+        spriteUrl,  // Now it's asset:// URL, not base64
+        isCustom: true,
+      };
+      addCharacter(newChar);
+      setCurrentCharacter(newChar);
+      setUploadError(null);
+
+      // 清空状态
+      setCustomName('');
+      setSelectedFile(null);
+      setFilePreviewUrl(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      console.error('Failed to save character image:', err);
+      setUploadError(t('appearance.uploadErrorSave'));
+    }
   };
 
   // 取消选择
@@ -163,9 +172,17 @@ export function AppearanceTab() {
               onSelect={() => setCurrentCharacter(char)}
               onDelete={
                 char.isCustom
-                  ? () => {
+                  ? async () => {
                       const fallback =
                         characters.find((candidate) => candidate.id !== char.id) || null;
+
+                      // Delete image file from disk
+                      try {
+                        await deleteCharacterImage(char.name);
+                      } catch (err) {
+                        console.error('Failed to delete character image:', err);
+                      }
+
                       removeCharacter(char.id);
                       if (currentCharacter?.id === char.id) {
                         if (fallback) {

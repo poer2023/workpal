@@ -17,9 +17,11 @@ interface ContextMenuState {
 export function Pet() {
   const {
     currentCharacter,
+    characters,
     petSize,
     currentState,
     setCurrentState,
+    setCurrentCharacter,
     alwaysOnTop,
     backgroundRemovalAlgorithm,
   } = useSettingsStore();
@@ -37,13 +39,35 @@ export function Pet() {
     invoke('set_always_on_top', { enabled: alwaysOnTop }).catch(console.error);
   }, []);
 
-  const { canvasRef, scaledSize, canvasSize } = useSprite({
+  const { canvasRef, scaledSize, canvasSize, loadError } = useSprite({
     spriteUrl: currentCharacter?.spriteUrl || '/sprites/cat.png',
     state: currentState,
     size: petSize,
     fps: 8,
     backgroundRemovalAlgorithm,
   });
+
+  // Fallback to default character if sprite fails to load (e.g., missing custom asset)
+  useEffect(() => {
+    if (!loadError) return;
+    if (currentCharacter?.isCustom) {
+      console.warn('Custom sprite failed to load:', loadError);
+      return;
+    }
+    const fallback =
+      characters.find((char) => !char.isCustom && char.spriteUrl === '/sprites/cat.png') ||
+      characters[0] ||
+      {
+        id: 'default-cat',
+        name: 'Cat',
+        spriteUrl: '/sprites/cat.png',
+        isCustom: false,
+      };
+    if (currentCharacter?.id !== fallback.id) {
+      console.warn('Sprite load failed, falling back to default character:', loadError);
+      setCurrentCharacter(fallback);
+    }
+  }, [loadError, characters, currentCharacter, setCurrentCharacter]);
 
   const { dragProps } = useDrag({
     onDragStart: () => setCurrentState('dragging'),

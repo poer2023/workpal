@@ -6,7 +6,8 @@ use commands::{
     get_activity_state, is_monitoring_active, poll_activity, start_monitoring, stop_monitoring,
     MonitorState,
 };
-use tauri::Manager;
+use tauri::{Manager, AppHandle};
+use std::path::PathBuf;
 use tauri_plugin_autostart::MacosLauncher;
 
 #[tauri::command]
@@ -35,6 +36,40 @@ fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Resu
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn save_character_image(app: AppHandle, name: String, data: Vec<u8>) -> Result<String, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let characters_dir = app_data.join("characters");
+    std::fs::create_dir_all(&characters_dir).map_err(|e| e.to_string())?;
+
+    let file_path = characters_dir.join(format!("{}.png", name));
+    std::fs::write(&file_path, data).map_err(|e| e.to_string())?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn delete_character_image(app: AppHandle, name: String) -> Result<(), String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let file_path = app_data.join("characters").join(format!("{}.png", name));
+    if file_path.exists() {
+        std::fs::remove_file(file_path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn read_character_image(app: AppHandle, path: String) -> Result<Vec<u8>, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data = app_data.canonicalize().map_err(|e| e.to_string())?;
+    let candidate = PathBuf::from(path);
+    let candidate = candidate.canonicalize().map_err(|e| e.to_string())?;
+    if !candidate.starts_with(&app_data) {
+        return Err("Invalid path".to_string());
+    }
+    std::fs::read(candidate).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -52,7 +87,10 @@ pub fn run() {
             stop_monitoring,
             get_activity_state,
             poll_activity,
-            is_monitoring_active
+            is_monitoring_active,
+            save_character_image,
+            delete_character_image,
+            read_character_image
         ])
         .manage(MonitorState::default())
         .setup(|app| {
