@@ -154,9 +154,10 @@ export const useSettingsStore = create<SettingsState>()(
           nextState = { ...nextState, windowPosition: null };
         }
         if (version < 2 && nextState?.characters) {
+          const chars = nextState.characters as Character[];
           nextState = {
             ...nextState,
-            characters: nextState.characters.map((char: Character) => ({
+            characters: chars.map((char: Character) => ({
               ...char,
               backgroundRemoved:
                 typeof char.backgroundRemoved === 'boolean'
